@@ -62,6 +62,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -70,23 +71,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.classsync.ui.theme.ClassSyncTheme
+import com.example.classsync.ui.theme.*
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
-
-//region Color Definitions
-val PurpleBlueDark = Color(0xFF2C2F4D)
-val PurpleBlueMedium = Color(0xFF4C507C)
-val PurpleBlueLight = Color(0xFF8C9EFF)
-val PurpleBlueAccent = Color(0xFF6A7BFF)
-val TextPrimary = Color.White
-val TextSecondary = Color.LightGray
-val GridLineColor = TextSecondary.copy(alpha = 0.5f)
-val SelectedItemColor = PurpleBlueLight.copy(alpha = 0.2f)
-//endregion
 
 val DAYS_OF_WEEK = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 val CLASS_PERIOD_COUNT = 12 // Assuming 12 class periods in a day
@@ -104,6 +94,7 @@ sealed class Screen {
     object AllCourseSchedules : Screen()
     object CourseScheduleSettings : Screen()
     object CourseSchedule : Screen()
+    object CourseTimeSettings : Screen() // 新增：课程时间设置页面
 }
 
 // Data class for a single course schedule
@@ -125,12 +116,10 @@ class MainActivity : ComponentActivity() {
                 Crossfade(targetState = currentScreen, label = "Screen Crossfade") { screen ->
                     when (screen) {
                         Screen.AllCourseSchedules -> AllCourseSchedulesScreen(
-                            // Example: Navigate to settings of the first schedule, or pass ID
                             onNavigateToSettings = { scheduleId ->
                                 Log.d("Navigation", "Settings for $scheduleId")
                                 currentScreen = Screen.CourseScheduleSettings
                             },
-                            // Example: Navigate to view the first schedule, or pass ID
                             onNavigateToCourseSchedule = { scheduleId ->
                                 Log.d("Navigation", "View schedule $scheduleId")
                                 currentScreen = Screen.CourseSchedule
@@ -138,10 +127,17 @@ class MainActivity : ComponentActivity() {
                             onNavigateBack = { Log.d("Navigation", "Back from AllSchedules (no-op here)") }
                         )
                         Screen.CourseScheduleSettings -> CourseScheduleSettingsScreen(
-                            onNavigateBack = { currentScreen = Screen.AllCourseSchedules }
+                            onNavigateBack = { currentScreen = Screen.AllCourseSchedules },
+                            onNavigateToCourseTimeSettings = { 
+                                Log.d("Navigation", "Navigating to Course Time Settings")
+                                currentScreen = Screen.CourseTimeSettings
+                            }
                         )
                         Screen.CourseSchedule -> CourseScheduleScreen(
                             onNavigateBack = { currentScreen = Screen.AllCourseSchedules }
+                        )
+                        Screen.CourseTimeSettings -> CourseTimeSettingsScreen(
+                            onNavigateBack = { currentScreen = Screen.CourseScheduleSettings } 
                         )
                     }
                 }
@@ -168,7 +164,7 @@ fun AllCourseSchedulesScreen(
     modifier: Modifier = Modifier,
     onNavigateToSettings: (scheduleId: String) -> Unit,
     onNavigateToCourseSchedule: (scheduleId: String) -> Unit,
-    onNavigateBack: () -> Unit // Added for consistency, though might be handled by system back
+    onNavigateBack: () -> Unit 
 ) {
     var isInSelectionMode by remember { mutableStateOf(false) }
     val schedulesList = remember {
@@ -181,14 +177,20 @@ fun AllCourseSchedulesScreen(
     val selectedScheduleIds = remember { mutableStateOf(emptySet<String>()) }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = PurpleBlueDark,
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(
+                colors = listOf(GradientBlue, GradientPurple),
+                start = Offset(0f, 0f), 
+                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY) 
+            )),
+        containerColor = Color.Transparent, 
         topBar = {
             SmallTopAppBar(
                 title = {
                     Text(
                         if (isInSelectionMode) "已选择 ${selectedScheduleIds.value.size} 项" else "全部课程表",
-                        color = TextPrimary
+                        color = Color.White // Changed for readability on gradient
                     )
                 },
                 navigationIcon = {
@@ -197,11 +199,11 @@ fun AllCourseSchedulesScreen(
                             isInSelectionMode = false
                             selectedScheduleIds.value = emptySet()
                         }) {
-                            Icon(Icons.Filled.Close, contentDescription = "取消选择", tint = TextPrimary)
+                            Icon(Icons.Filled.Close, contentDescription = "取消选择", tint = Color.White) // Changed for readability
                         }
                     } else {
-                        IconButton(onClick = onNavigateBack) { // Or your actual back navigation logic
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = TextPrimary)
+                        IconButton(onClick = onNavigateBack) { 
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // Changed for readability
                         }
                     }
                 },
@@ -209,37 +211,33 @@ fun AllCourseSchedulesScreen(
                     if (isInSelectionMode) {
                         if (selectedScheduleIds.value.isNotEmpty()) {
                             IconButton(onClick = {
-                                // Placeholder for delete logic
                                 val idsToRemove = selectedScheduleIds.value
                                 schedulesList.removeAll { it.id in idsToRemove }
                                 Log.d("AllSchedules", "Deleting: $idsToRemove")
                                 isInSelectionMode = false
                                 selectedScheduleIds.value = emptySet()
                             }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "删除选中", tint = TextPrimary)
+                                Icon(Icons.Filled.Delete, contentDescription = "删除选中", tint = Color.White) // Changed for readability
                             }
                         }
                     } else {
-                        IconButton(onClick = {
-                            isInSelectionMode = true
-                        }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = TextPrimary) // Replaced Checklist
+                        IconButton(onClick = { isInSelectionMode = true }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = Color.White) // Changed for readability
                         }
                         IconButton(onClick = {
-                            // Placeholder for adding a new schedule
                             val newScheduleName = "新建课程表 ${schedulesList.size + 1}"
                             schedulesList.add(ScheduleData(name = newScheduleName, term = "待设置学期"))
                             Log.d("AllSchedules", "Add new schedule clicked")
                         }) {
-                            Icon(Icons.Filled.Add, contentDescription = "新建课程表", tint = TextPrimary)
+                            Icon(Icons.Filled.Add, contentDescription = "新建课程表", tint = Color.White) // Changed for readability
                         }
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = PurpleBlueDark,
-                    titleContentColor = TextPrimary,
-                    navigationIconContentColor = TextPrimary,
-                    actionIconContentColor = TextPrimary
+                    containerColor = Color.Transparent,
+                    titleContentColor = Color.White, // Ensure consistency
+                    navigationIconContentColor = Color.White, // Ensure consistency
+                    actionIconContentColor = Color.White // Ensure consistency
                 )
             )
         }
@@ -248,13 +246,13 @@ fun AllCourseSchedulesScreen(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .background(PurpleBlueDark)
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp) // Adjusted padding
+                .background(Color.Transparent) 
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp) 
         ) {
             if (!isInSelectionMode) {
                 Text(
                     text = "点击课程表卡片可切换当前并查看课程",
-                    color = TextSecondary,
+                    color = Color.White.copy(alpha = 0.7f), // Lighter for readability on gradient
                     fontSize = 14.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
@@ -284,15 +282,9 @@ fun AllCourseSchedulesScreen(
                                     selectedScheduleIds.value + schedule.id
                                 }
                             } else {
-                                // Set this schedule as current (example logic)
-                                schedulesList.forEach { it.isCurrent = (it.id == schedule.id) }
-                                // schedulesList.find { it.id == schedule.id }?.isCurrent = true
-                                // This requires recomposition, ensure schedulesList is observed correctly.
-                                // A simple way is to trigger a recomposition by reassigning to a new list or using SnapshotStateList items.
                                 val currentList = SnapshotStateList<ScheduleData>().also { it.addAll(schedulesList) }
                                 schedulesList.clear()
                                 schedulesList.addAll(currentList.map { sch -> if (sch.id == schedule.id) sch.copy(isCurrent = true) else sch.copy(isCurrent = false) })
-
                                 onNavigateToCourseSchedule(schedule.id)
                             }
                         },
@@ -320,7 +312,7 @@ fun ScheduleCardItem(
             .clickable(onClick = onCardClick)
             .then(if (isSelected && isInSelectionMode) Modifier.border(2.dp, PurpleBlueAccent, MaterialTheme.shapes.medium) else Modifier),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected && isInSelectionMode) SelectedItemColor else PurpleBlueMedium
+            containerColor = if (isSelected && isInSelectionMode) SelectedItemColor else Color.White.copy(alpha = 0.35f) 
         )
     ) {
         Row(
@@ -337,8 +329,8 @@ fun ScheduleCardItem(
                         onCheckedChange = { onToggleSelection() },
                         colors = CheckboxDefaults.colors(
                             checkedColor = PurpleBlueAccent,
-                            uncheckedColor = TextSecondary,
-                            checkmarkColor = TextPrimary
+                            uncheckedColor = TextSecondary, // Deep Gray
+                            checkmarkColor = Color.White // White checkmark for contrast on Accent
                         ),
                         modifier = Modifier.padding(end = 12.dp)
                     )
@@ -346,20 +338,20 @@ fun ScheduleCardItem(
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = scheduleData.name,
-                        color = TextPrimary,
+                        color = TextPrimary, // Black
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = scheduleData.term,
-                        color = TextSecondary,
+                        color = TextSecondary, // Deep Gray
                         fontSize = 12.sp
                     )
                 }
                 if (scheduleData.isCurrent && !isInSelectionMode) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
-                        Icons.Filled.CheckCircle, // Using CheckCircle for "current"
+                        Icons.Filled.CheckCircle, 
                         contentDescription = "当前课表",
                         tint = PurpleBlueLight,
                         modifier = Modifier.size(20.dp)
@@ -371,7 +363,7 @@ fun ScheduleCardItem(
                     onClick = onSettingsClick,
                     colors = ButtonDefaults.buttonColors(containerColor = PurpleBlueAccent)
                 ) {
-                    Text("设置", color = TextPrimary)
+                    Text("设置", color = Color.White) // White text on Accent button
                 }
             }
         }
@@ -403,20 +395,26 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
     val dateFormatter = remember { DateTimeFormatter.ofPattern("M/d") }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = PurpleBlueDark,
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(
+                colors = listOf(GradientBlue, GradientPurple),
+                start = Offset(0f, 0f),
+                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+            )),
+        containerColor = Color.Transparent,
         topBar = {
             SmallTopAppBar(
-                title = { Text("2025-2026-1 学期课表", color = TextPrimary, fontSize = 18.sp) },
+                title = { Text("2025-2026-1 学期课表", color = Color.White, fontSize = 18.sp) }, // White text
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = TextPrimary)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = PurpleBlueDark,
-                    titleContentColor = TextPrimary,
-                    navigationIconContentColor = TextPrimary
+                    containerColor = Color.Transparent,
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         },
@@ -424,9 +422,9 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
             FloatingActionButton(
                 onClick = { /* Handle add course click */ },
                 containerColor = PurpleBlueAccent,
-                contentColor = TextPrimary
+                contentColor = Color.White // White icon on Accent FAB
             ) {
-                Icon(Icons.Filled.Add, "添加课程")
+                Icon(Icons.Filled.Add, "添加课程", tint = Color.White) // Explicitly tint icon if needed
             }
         }
     ) { paddingValues ->
@@ -434,64 +432,60 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .background(PurpleBlueDark)
+                .background(Color.Transparent) 
         ) {
-            // Day Headers Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(HEADER_HEIGHT)
-                    .background(PurpleBlueDark), // Header row background
+                    .background(Color.Transparent),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Clickable Box for Week Picker
                 Box(
                     modifier = Modifier
                         .width(TIME_COLUMN_WIDTH)
-                        .fillMaxHeight() // Ensure the box fills the header height
-                        .background(PurpleBlueMedium.copy(alpha=0.7f)) // Slightly different background for the corner
+                        .fillMaxHeight() 
+                        .background(Color.White.copy(alpha=0.35f)) 
                         .clickable { showWeekPicker = true }
                         .padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("第", color = TextPrimary, fontSize = 12.sp)
-                        Text("$currentWeek", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("周", color = TextPrimary, fontSize = 12.sp)
+                        Text("第", color = TextPrimary, fontSize = 12.sp) // Black text on light semi-transparent bg
+                        Text("$currentWeek", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold) // Black text
+                        Text("周", color = TextPrimary, fontSize = 12.sp) // Black text
                     }
                 }
                 DAYS_OF_WEEK.forEachIndexed { index, day ->
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight(), // Ensure column fills header height
+                            .fillMaxHeight(), 
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = day,
                             textAlign = TextAlign.Center,
-                            color = TextPrimary,
+                            color = Color.White, // White text on gradient
                             fontSize = 12.sp
                         )
                         Text(
                             text = dateFormatter.format(weekDates[index]),
                             textAlign = TextAlign.Center,
-                            color = TextSecondary,
+                            color = Color.White.copy(alpha = 0.7f), // Lighter white text on gradient
                             fontSize = 10.sp
                         )
                     }
                 }
             }
 
-            // Main Schedule Grid
             Row(modifier = Modifier.fillMaxSize()) {
-                // Time/Class Period Column
                 Column(
                     modifier = Modifier
                         .width(TIME_COLUMN_WIDTH)
-                        .fillMaxHeight() // Ensure it fills the available height
-                        .background(PurpleBlueDark) // Time column background
+                        .fillMaxHeight() 
+                        .background(Color.Transparent) 
                 ) {
                     repeat(CLASS_PERIOD_COUNT) { index ->
                         Box(
@@ -502,39 +496,36 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
                         ) {
                             Text(
                                 text = CLASS_START_TIMES[index],
-                                color = TextSecondary,
+                                color = Color.White.copy(alpha = 0.7f), // Lighter white text on gradient
                                 fontSize = 10.sp
                             )
                         }
                     }
                 }
 
-                // Course Display Area with Grid Lines
                 BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .background(PurpleBlueDark) // Main grid background
+                        .background(Color.Transparent) 
                 ) {
                     val columnWidth = maxWidth / DAYS_OF_WEEK.size
                     val rowHeight = CELL_HEIGHT
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        // Draw vertical lines
                         repeat(DAYS_OF_WEEK.size - 1) { i ->
                             val x = (i + 1) * columnWidth.toPx()
                             drawLine(
-                                color = GridLineColor,
+                                color = GridLineColor, // Uses new GridLineColor definition
                                 start = Offset(x, 0f),
                                 end = Offset(x, size.height),
                                 strokeWidth = 1.dp.toPx()
                             )
                         }
-                        // Draw horizontal lines
-                        repeat(CLASS_PERIOD_COUNT) { i -> // Draw for all cells including the last one's bottom
+                        repeat(CLASS_PERIOD_COUNT) { i -> 
                             val y = (i + 1) * rowHeight.toPx()
                             drawLine(
-                                color = GridLineColor,
+                                color = GridLineColor, // Uses new GridLineColor definition
                                 start = Offset(0f, y),
                                 end = Offset(size.width, y),
                                 strokeWidth = 1.dp.toPx()
@@ -554,20 +545,20 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
                                 .offset(x = courseX, y = courseY)
                                 .width(columnWidth)
                                 .height(courseHeight)
-                                .padding(1.dp) // Minimal padding for the border to show
+                                .padding(1.dp) 
                                 .background(course.color, shape = MaterialTheme.shapes.extraSmall)
-                                .border(0.5.dp, TextSecondary.copy(alpha = 0.7f), MaterialTheme.shapes.extraSmall)
+                                .border(0.5.dp, TextSecondary.copy(alpha = 0.8f), MaterialTheme.shapes.extraSmall) // Darker border
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 2.dp, vertical=4.dp),
-                                verticalArrangement = Arrangement.Top, // Align text to top
+                                verticalArrangement = Arrangement.Top, 
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
                                     text = course.name,
-                                    color = Color.Black.copy(alpha = 0.8f), // Darker text for readability on colored bg
+                                    color = Color.Black.copy(alpha = 0.8f), 
                                     fontSize = 10.sp,
                                     textAlign = TextAlign.Center,
                                     fontWeight = FontWeight.Bold,
@@ -610,22 +601,32 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CourseScheduleSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Unit) {
+fun CourseScheduleSettingsScreen(
+    modifier: Modifier = Modifier,
+    onNavigateBack: () -> Unit,
+    onNavigateToCourseTimeSettings: () -> Unit 
+) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = PurpleBlueDark,
+        modifier = modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(
+                colors = listOf(GradientBlue, GradientPurple),
+                start = Offset(0f, 0f),
+                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+            )),
+        containerColor = Color.Transparent,
         topBar = {
             SmallTopAppBar(
-                title = { Text("课程表设置", color = TextPrimary) },
+                title = { Text("课程表设置", color = Color.White) }, // White text
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = TextPrimary)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = PurpleBlueDark,
-                    titleContentColor = TextPrimary,
-                    navigationIconContentColor = TextPrimary
+                    containerColor = Color.Transparent,
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         }
@@ -634,8 +635,8 @@ fun CourseScheduleSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: 
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .background(PurpleBlueDark)
-                .padding(vertical = 8.dp) // Add padding for the first and last group
+                .background(Color.Transparent) 
+                .padding(vertical = 8.dp) 
         ) {
             SettingGroup(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 SettingItem(
@@ -653,7 +654,7 @@ fun CourseScheduleSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: 
                 )
                 SettingItemWithDescription(
                     label = "当前周数",
-                    value = "第6周", // This should ideally be dynamic
+                    value = "第6周", 
                     description = "根据你选择的开学日期推算当前周数",
                     onClick = { /* Handle click */ }
                 )
@@ -672,7 +673,7 @@ fun CourseScheduleSettingsScreen(modifier: Modifier = Modifier, onNavigateBack: 
                 )
                 SettingItemWithDescription(
                     label = "课程时间设置",
-                    onClick = { /* Handle click */ },
+                    onClick = onNavigateToCourseTimeSettings, 
                     showArrow = true,
                     description = "设置课程节数，调整每节课时间"
                 )
@@ -723,7 +724,7 @@ fun SettingGroup(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = PurpleBlueMedium),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.35f)), 
         shape = MaterialTheme.shapes.medium
     ) {
         Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -744,17 +745,17 @@ fun SettingItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp), // Increased vertical padding
+            .padding(horizontal = 16.dp, vertical = 14.dp), 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = TextPrimary, fontSize = 16.sp)
+        Text(text = label, color = TextPrimary, fontSize = 16.sp) // Black text
         Row(verticalAlignment = Alignment.CenterVertically) {
             value?.let {
-                Text(text = it, color = TextSecondary, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(text = it, color = TextSecondary, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp)) // Deep Gray text
             }
             if (showArrow) {
-                Icon(arrowIcon, contentDescription = null, tint = TextSecondary)
+                Icon(arrowIcon, contentDescription = null, tint = TextSecondary) // Deep Gray icon
             }
         }
     }
@@ -766,32 +767,32 @@ fun SettingItemWithDescription(
     value: String? = null,
     description: String? = null,
     onClick: () -> Unit,
-    showArrow: Boolean = false, // Added for consistency, though not used in original based on screenshot
+    showArrow: Boolean = false, 
     arrowIcon: ImageVector = Icons.Filled.KeyboardArrowRight
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp) // Increased vertical padding
+            .padding(horizontal = 16.dp, vertical = 14.dp) 
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = label, color = TextPrimary, fontSize = 16.sp)
+            Text(text = label, color = TextPrimary, fontSize = 16.sp) // Black text
             Row(verticalAlignment = Alignment.CenterVertically) {
                 value?.let {
-                    Text(text = it, color = TextSecondary, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                    Text(text = it, color = TextSecondary, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp)) // Deep Gray text
                 }
-                if (showArrow) { // Only show arrow if explicitly true
-                    Icon(arrowIcon, contentDescription = null, tint = TextSecondary)
+                if (showArrow) { 
+                    Icon(arrowIcon, contentDescription = null, tint = TextSecondary) // Deep Gray icon
                 }
             }
         }
         description?.let {
-            Text(text = it, color = TextSecondary.copy(alpha = 0.7f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(text = it, color = TextSecondary.copy(alpha = 0.8f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp)) 
         }
     }
 }
@@ -810,11 +811,11 @@ fun SettingToggleItem(
                 checked = !checked
                 onToggle(checked)
             }
-            .padding(horizontal = 16.dp, vertical = 8.dp), // Adjusted padding for toggle item
+            .padding(horizontal = 16.dp, vertical = 8.dp), 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = TextPrimary, fontSize = 16.sp)
+        Text(text = label, color = TextPrimary, fontSize = 16.sp) // Black text
         Switch(
             checked = checked,
             onCheckedChange = {
@@ -824,8 +825,8 @@ fun SettingToggleItem(
             colors = SwitchDefaults.colors(
                 checkedThumbColor = PurpleBlueAccent,
                 checkedTrackColor = PurpleBlueLight.copy(alpha = 0.6f),
-                uncheckedThumbColor = TextSecondary,
-                uncheckedTrackColor = PurpleBlueMedium.copy(alpha = 0.6f)
+                uncheckedThumbColor = TextSecondary, // Deep Gray thumb
+                uncheckedTrackColor = Color.White.copy(alpha = 0.4f) 
             )
         )
     }
@@ -846,14 +847,14 @@ fun SettingToggleItemWithDescription(
                 checked = !checked
                 onToggle(checked)
             }
-            .padding(horizontal = 16.dp, vertical = 8.dp) // Adjusted padding
+            .padding(horizontal = 16.dp, vertical = 8.dp) 
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = label, color = TextPrimary, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(end = 8.dp))
+            Text(text = label, color = TextPrimary, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(end = 8.dp)) // Black text
             Switch(
                 checked = checked,
                 onCheckedChange = {
@@ -863,12 +864,12 @@ fun SettingToggleItemWithDescription(
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = PurpleBlueAccent,
                     checkedTrackColor = PurpleBlueLight.copy(alpha = 0.6f),
-                    uncheckedThumbColor = TextSecondary,
-                    uncheckedTrackColor = PurpleBlueMedium.copy(alpha = 0.6f)
+                    uncheckedThumbColor = TextSecondary, // Deep Gray thumb
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.4f) 
                 )
             )
         }
-        Text(text = description, color = TextSecondary.copy(alpha = 0.7f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(text = description, color = TextSecondary.copy(alpha = 0.8f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
@@ -881,25 +882,24 @@ fun WeekPickerDialog(
 ) {
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = PurpleBlueMedium),
-            shape = MaterialTheme.shapes.large // More rounded corners for dialog
+            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.35f)), 
+            shape = MaterialTheme.shapes.large 
         ) {
             Column(
-                modifier = Modifier.padding(24.dp), // Increased padding
+                modifier = Modifier.padding(24.dp), 
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("切换周课表", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                Spacer(Modifier.height(20.dp)) // Increased spacing
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { // Add spacing between rows
-                    // Assuming max 18-20 weeks, 3 or 4 rows
-                    val totalWeeks = 18 // Example, can be dynamic
+                Text("切换周课表", style = MaterialTheme.typography.titleMedium, color = TextPrimary) // Black text
+                Spacer(Modifier.height(20.dp)) 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { 
+                    val totalWeeks = 18 
                     val weeksPerRow = 6
                     val numRows = (totalWeeks + weeksPerRow - 1) / weeksPerRow
 
                     repeat(numRows) { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) // Spacing and center
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) 
                         ) {
                             repeat(weeksPerRow) { column ->
                                 val weekNumber = row * weeksPerRow + column + 1
@@ -908,29 +908,34 @@ fun WeekPickerDialog(
                                         onClick = { onWeekSelected(weekNumber) },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(48.dp), // Ensure buttons are easy to tap
+                                            .height(48.dp), 
                                         enabled = weekNumber != currentWeek,
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (weekNumber == currentWeek) PurpleBlueAccent else PurpleBlueLight,
-                                            disabledContainerColor = PurpleBlueDark.copy(alpha = 0.5f)
+                                            containerColor = if (weekNumber == currentWeek) PurpleBlueAccent else Color.White.copy(alpha = 0.3f), 
+                                            disabledContainerColor = Color.White.copy(alpha = 0.2f), 
+                                            contentColor = Color.White, // White text for all button states
+                                            disabledContentColor = Color.White.copy(alpha = 0.7f) // Slightly transparent white for disabled
                                         )
                                     ) {
-                                        Text("$weekNumber", color = TextPrimary)
+                                        Text("$weekNumber") // Text color handled by ButtonDefaults
                                     }
                                 } else {
-                                    Spacer(modifier = Modifier.weight(1f)) // Maintain layout
+                                    Spacer(modifier = Modifier.weight(1f)) 
                                 }
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp)) // Increased spacing
+                Spacer(Modifier.height(20.dp)) 
                 Button(
                     onClick = onDismissRequest,
-                    colors = ButtonDefaults.buttonColors(containerColor = PurpleBlueAccent),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PurpleBlueAccent,
+                        contentColor = Color.White // White text on Accent button
+                        ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("取消", color = TextPrimary)
+                    Text("取消") // Text color handled by ButtonDefaults
                 }
             }
         }
@@ -962,7 +967,7 @@ fun CourseScheduleScreenPreview() {
 @Composable
 fun CourseScheduleSettingsScreenPreview() {
     ClassSyncTheme {
-        CourseScheduleSettingsScreen(onNavigateBack = {})
+        CourseScheduleSettingsScreen(onNavigateBack = {}, onNavigateToCourseTimeSettings = {})
     }
 }
 
