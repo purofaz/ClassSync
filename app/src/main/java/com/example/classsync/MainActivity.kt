@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -126,12 +128,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val prefs = userPreferencesRepository.fetchInitialPreferences()
                     schedulesList.clear()
-
-                    if (prefs.schedules.isEmpty()) {
-                        schedulesList.addAll(createSampleSchedules())
-                    } else {
-                        schedulesList.addAll(prefs.schedules)
-                    }
+                    schedulesList.addAll(prefs.schedules)
                 }
 
                 LaunchedEffect(schedulesList) {
@@ -229,22 +226,6 @@ fun calculateCurrentWeek(startDate: LocalDate): Int {
     val daysBetween = ChronoUnit.DAYS.between(startDate, today)
     val weekNumber = (daysBetween / 7) + 1
     return weekNumber.toInt().coerceAtLeast(1)
-}
-
-fun createSampleSchedules(): List<ScheduleData> {
-    val sampleCourses1 = listOf(
-        Course(name = "软件工程", location = "教A-101", teacher = "张老师", weekSet = (1..10).toSet(), dayOfWeek = 1, startClass = 1, endClass = 2, color = Color(0xFFF06292)),
-        Course(name = "操作系统", location = "实验B-203", teacher = "李教授", weekSet = (2..12).toSet(), dayOfWeek = 3, startClass = 3, endClass = 4, color = Color(0xFF4DB6AC)),
-        Course(name = "大学物理", location = "图书馆-305", teacher = "王博士", weekSet = (5..15).toSet(), dayOfWeek = 5, startClass = 6, endClass = 7, color = Color(0xFF9575CD))
-    )
-    val sampleCourses2 = listOf(
-        Course(name = "线性代数", location = "综-C401", teacher = "赵老师", weekSet = (1..16).toSet(), dayOfWeek = 2, startClass = 1, endClass = 2, color = Color(0xFF4FC3F7)),
-        Course(name = "数据结构", location = "电-505", teacher = "孙老师", weekSet = (1..12).toSet(), dayOfWeek = 4, startClass = 3, endClass = 5, color = Color(0xFFFFD54F))
-    )
-    return listOf(
-        ScheduleData(name = "我的课表", term = "2024-2025-1", isCurrent = true, courses = sampleCourses1),
-        ScheduleData(name = "辅修课表", term = "2024-2025-1", courses = sampleCourses2)
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -660,7 +641,13 @@ fun CourseScheduleScreen(
                             modifier = Modifier
                                 .offset(x = offsetX, y = offsetY)
                                 .size(width = cellWidth, height = CELL_HEIGHT)
+                                .border(
+                                    width = 1.5.dp,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
                                 .padding(12.dp)
+
                         )
                     }
                     
@@ -744,77 +731,55 @@ fun ScheduleGrid(
     timeColumnWidth: androidx.compose.ui.unit.Dp,
     onCellClick: (day: Int, classPeriod: Int) -> Unit
 ) {
-    Row {
-        Column {
-            Spacer(modifier = Modifier.height(HEADER_HEIGHT))
-            (1..classPeriodCount).forEach { index ->
-                val time = classStartTimes.getOrNull(index - 1) ?: ""
-                Box(
-                    modifier = Modifier
-                        .height(cellHeight)
-                        .width(timeColumnWidth),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "$index\n$time",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-
-        // Clickable empty cells
-        Row(modifier = Modifier.fillMaxSize()) {
-            for (day in 1..7) {
-                Column(modifier = Modifier.width(cellWidth)) {
-                    for (classPeriod in 1..classPeriodCount) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(cellHeight)
-                                .clickable { onCellClick(day, classPeriod) }
+    Box {
+        Row {
+            Column {
+                Spacer(modifier = Modifier.height(HEADER_HEIGHT))
+                (1..classPeriodCount).forEach { index ->
+                    val time = classStartTimes.getOrNull(index - 1) ?: ""
+                    Box(
+                        modifier = Modifier
+                            .height(cellHeight)
+                            .width(timeColumnWidth),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "$index\n$time",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
             }
+            Row {
+                for (day in 1..7) {
+                    Column(modifier = Modifier.width(cellWidth)) {
+                        for (classPeriod in 1..classPeriodCount) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(cellHeight)
+                                    .clickable { onCellClick(day, classPeriod) }
+                            )
+                        }
+                    }
+                }
+            }
         }
-
         Canvas(modifier = Modifier.fillMaxSize()) {
             val gridHeight = classPeriodCount * cellHeight.toPx()
-            val gridWidth = 7 * cellWidth.toPx()
             val headerHeightPx = HEADER_HEIGHT.toPx()
             val defaultLineColor = Color.White.copy(alpha = 0.3f)
-            val separatorLineColor = Color.White.copy(alpha = 0.5f)
-
-            // Horizontal lines
-            for (i in 0..classPeriodCount) {
-                val y = i * cellHeight.toPx() + headerHeightPx
-                val color = when (i) {
-                    4, 8 -> separatorLineColor
-                    else -> defaultLineColor
-                }
-                val strokeWidth = when (i) {
-                    4, 8 -> 1.5f
-                    else -> 1f
-                }
-                drawLine(
-                    color = color,
-                    start = Offset(0f, y),
-                    end = Offset(gridWidth, y),
-                    strokeWidth = strokeWidth
-                )
-            }
 
             // Vertical lines
             for (i in 0..7) {
-                val x = i * cellWidth.toPx()
+                val x = i * cellWidth.toPx() + timeColumnWidth.toPx()
                 drawLine(
                     color = defaultLineColor,
                     start = Offset(x, headerHeightPx),
                     end = Offset(x, gridHeight + headerHeightPx),
-                    strokeWidth = 1f
+                    strokeWidth = 1.5f
                 )
             }
         }
