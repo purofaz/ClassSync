@@ -3,6 +3,7 @@ package com.example.classsync
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -137,6 +138,23 @@ class MainActivity : ComponentActivity() {
                     snapshotFlow { schedulesList.toList() }
                         .debounce(500)
                         .collect { userPreferencesRepository.updateSchedules(it) }
+                }
+
+                BackHandler(enabled = currentScreen != Screen.AllCourseSchedules) {
+                    when (val screen = currentScreen) {
+                        is Screen.CourseScheduleSettings -> {
+                            currentScreen = Screen.AllCourseSchedules
+                        }
+                        is Screen.CourseSchedule -> {
+                            currentScreen = Screen.AllCourseSchedules
+                        }
+                        is Screen.CourseTimeSettings -> {
+                            currentScreen = Screen.CourseScheduleSettings(screen.scheduleId)
+                        }
+                        else -> {
+                            // Should not happen as BackHandler is disabled for AllCourseSchedules
+                        }
+                    }
                 }
 
                 Crossfade(targetState = currentScreen, label = "Screen Crossfade") { screen ->
