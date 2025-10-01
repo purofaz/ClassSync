@@ -27,14 +27,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,11 +47,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallTopAppBar
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -123,8 +126,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateToCourseSchedule = { scheduleId ->
                                 Log.d("Navigation", "View schedule $scheduleId")
                                 currentScreen = Screen.CourseSchedule
-                            },
-                            onNavigateBack = { Log.d("Navigation", "Back from AllSchedules (no-op here)") }
+                            }
                         )
                         Screen.CourseScheduleSettings -> CourseScheduleSettingsScreen(
                             onNavigateBack = { currentScreen = Screen.AllCourseSchedules },
@@ -163,8 +165,7 @@ data class Course(
 fun AllCourseSchedulesScreen(
     modifier: Modifier = Modifier,
     onNavigateToSettings: (scheduleId: String) -> Unit,
-    onNavigateToCourseSchedule: (scheduleId: String) -> Unit,
-    onNavigateBack: () -> Unit 
+    onNavigateToCourseSchedule: (scheduleId: String) -> Unit
 ) {
     var isInSelectionMode by remember { mutableStateOf(false) }
     val schedulesList = remember {
@@ -186,11 +187,11 @@ fun AllCourseSchedulesScreen(
             )),
         containerColor = Color.Transparent, 
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         if (isInSelectionMode) "已选择 ${selectedScheduleIds.value.size} 项" else "全部课程表",
-                        color = Color.White // Changed for readability on gradient
+                        color = Color.White
                     )
                 },
                 navigationIcon = {
@@ -199,11 +200,7 @@ fun AllCourseSchedulesScreen(
                             isInSelectionMode = false
                             selectedScheduleIds.value = emptySet()
                         }) {
-                            Icon(Icons.Filled.Close, contentDescription = "取消选择", tint = Color.White) // Changed for readability
-                        }
-                    } else {
-                        IconButton(onClick = onNavigateBack) { 
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // Changed for readability
+                            Icon(Icons.Filled.Close, contentDescription = "取消选择", tint = Color.White)
                         }
                     }
                 },
@@ -217,27 +214,27 @@ fun AllCourseSchedulesScreen(
                                 isInSelectionMode = false
                                 selectedScheduleIds.value = emptySet()
                             }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "删除选中", tint = Color.White) // Changed for readability
+                                Icon(Icons.Filled.Delete, contentDescription = "删除选中", tint = Color.White)
                             }
                         }
                     } else {
                         IconButton(onClick = { isInSelectionMode = true }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = Color.White) // Changed for readability
+                            Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = Color.White)
                         }
                         IconButton(onClick = {
                             val newScheduleName = "新建课程表 ${schedulesList.size + 1}"
                             schedulesList.add(ScheduleData(name = newScheduleName, term = "待设置学期"))
                             Log.d("AllSchedules", "Add new schedule clicked")
                         }) {
-                            Icon(Icons.Filled.Add, contentDescription = "新建课程表", tint = Color.White) // Changed for readability
+                            Icon(Icons.Filled.Add, contentDescription = "新建课程表", tint = Color.White)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = Color.White, // Ensure consistency
-                    navigationIconContentColor = Color.White, // Ensure consistency
-                    actionIconContentColor = Color.White // Ensure consistency
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
         }
@@ -251,8 +248,8 @@ fun AllCourseSchedulesScreen(
         ) {
             if (!isInSelectionMode) {
                 Text(
-                    text = "点击课程表卡片可切换当前并查看课程",
-                    color = Color.White.copy(alpha = 0.7f), // Lighter for readability on gradient
+                    text = "点击课程表卡片可切换当前并查看课程\n左滑课程表卡片可以删除",
+                    color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
@@ -263,32 +260,71 @@ fun AllCourseSchedulesScreen(
             ) {
                 items(schedulesList, key = { it.id }) { schedule ->
                     val isSelected = schedule.id in selectedScheduleIds.value
-                    ScheduleCardItem(
-                        scheduleData = schedule,
-                        isSelected = isSelected,
-                        isInSelectionMode = isInSelectionMode,
-                        onToggleSelection = {
-                            selectedScheduleIds.value = if (isSelected) {
-                                selectedScheduleIds.value - schedule.id
+                    
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                schedulesList.remove(schedule)
+                                true
                             } else {
-                                selectedScheduleIds.value + schedule.id
+                                false
+                            }
+                        }
+                    )
+
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        enableDismissFromStartToEnd = false,
+                        enableDismissFromEndToStart = true,
+                        backgroundContent = {
+                            val color = when (dismissState.targetValue) {
+                                SwipeToDismissBoxValue.EndToStart -> Color.Red.copy(alpha = 0.8f)
+                                else -> Color.Transparent
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(color, shape = MaterialTheme.shapes.medium)
+                                    .padding(horizontal = 20.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "删除",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
                             }
                         },
-                        onCardClick = {
-                            if (isInSelectionMode) {
-                                selectedScheduleIds.value = if (isSelected) {
-                                    selectedScheduleIds.value - schedule.id
-                                } else {
-                                    selectedScheduleIds.value + schedule.id
-                                }
-                            } else {
-                                val currentList = SnapshotStateList<ScheduleData>().also { it.addAll(schedulesList) }
-                                schedulesList.clear()
-                                schedulesList.addAll(currentList.map { sch -> if (sch.id == schedule.id) sch.copy(isCurrent = true) else sch.copy(isCurrent = false) })
-                                onNavigateToCourseSchedule(schedule.id)
-                            }
-                        },
-                        onSettingsClick = { onNavigateToSettings(schedule.id) }
+                        content = {
+                            ScheduleCardItem(
+                                scheduleData = schedule,
+                                isSelected = isSelected,
+                                isInSelectionMode = isInSelectionMode,
+                                onToggleSelection = {
+                                    selectedScheduleIds.value = if (isSelected) {
+                                        selectedScheduleIds.value - schedule.id
+                                    } else {
+                                        selectedScheduleIds.value + schedule.id
+                                    }
+                                },
+                                onCardClick = {
+                                    if (isInSelectionMode) {
+                                        selectedScheduleIds.value = if (isSelected) {
+                                            selectedScheduleIds.value - schedule.id
+                                        } else {
+                                            selectedScheduleIds.value + schedule.id
+                                        }
+                                    } else {
+                                        val currentList = SnapshotStateList<ScheduleData>().also { it.addAll(schedulesList) }
+                                        schedulesList.clear()
+                                        schedulesList.addAll(currentList.map { sch -> if (sch.id == schedule.id) sch.copy(isCurrent = true) else sch.copy(isCurrent = false) })
+                                        onNavigateToCourseSchedule(schedule.id)
+                                    }
+                                },
+                                onSettingsClick = { onNavigateToSettings(schedule.id) }
+                            )
+                        }
                     )
                 }
             }
@@ -310,9 +346,14 @@ fun ScheduleCardItem(
             .fillMaxWidth()
             .height(80.dp)
             .clickable(onClick = onCardClick)
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.5f),
+                shape = MaterialTheme.shapes.medium
+            )
             .then(if (isSelected && isInSelectionMode) Modifier.border(2.dp, PurpleBlueAccent, MaterialTheme.shapes.medium) else Modifier),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected && isInSelectionMode) SelectedItemColor else Color.White.copy(alpha = 0.35f) 
+            containerColor = Color.Transparent
         )
     ) {
         Row(
@@ -329,8 +370,8 @@ fun ScheduleCardItem(
                         onCheckedChange = { onToggleSelection() },
                         colors = CheckboxDefaults.colors(
                             checkedColor = PurpleBlueAccent,
-                            uncheckedColor = TextSecondary, // Deep Gray
-                            checkmarkColor = Color.White // White checkmark for contrast on Accent
+                            uncheckedColor = Color.White,
+                            checkmarkColor = Color.White
                         ),
                         modifier = Modifier.padding(end = 12.dp)
                     )
@@ -338,13 +379,13 @@ fun ScheduleCardItem(
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = scheduleData.name,
-                        color = TextPrimary, // Black
+                        color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = scheduleData.term,
-                        color = TextSecondary, // Deep Gray
+                        color = Color.White.copy(alpha = 0.7f),
                         fontSize = 12.sp
                     )
                 }
@@ -363,7 +404,7 @@ fun ScheduleCardItem(
                     onClick = onSettingsClick,
                     colors = ButtonDefaults.buttonColors(containerColor = PurpleBlueAccent)
                 ) {
-                    Text("设置", color = Color.White) // White text on Accent button
+                    Text("设置", color = Color.White)
                 }
             }
         }
@@ -404,14 +445,14 @@ fun CourseScheduleScreen(modifier: Modifier = Modifier, onNavigateBack: () -> Un
             )),
         containerColor = Color.Transparent,
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = { Text("2025-2026-1 学期课表", color = Color.White, fontSize = 18.sp) }, // White text
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
                     }
                 },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White
@@ -616,14 +657,14 @@ fun CourseScheduleSettingsScreen(
             )),
         containerColor = Color.Transparent,
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = { Text("课程表设置", color = Color.White) }, // White text
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Color.White) // White icon
                     }
                 },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White
@@ -739,7 +780,7 @@ fun SettingItem(
     value: String? = null,
     onClick: () -> Unit,
     showArrow: Boolean = false,
-    arrowIcon: ImageVector = Icons.Filled.KeyboardArrowRight
+    arrowIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight
 ) {
     Row(
         modifier = Modifier
@@ -768,7 +809,7 @@ fun SettingItemWithDescription(
     description: String? = null,
     onClick: () -> Unit,
     showArrow: Boolean = false, 
-    arrowIcon: ImageVector = Icons.Filled.KeyboardArrowRight
+    arrowIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight
 ) {
     Column(
         modifier = Modifier
@@ -949,8 +990,7 @@ fun AllCourseSchedulesScreenPreview() {
     ClassSyncTheme {
         AllCourseSchedulesScreen(
             onNavigateToSettings = {},
-            onNavigateToCourseSchedule = {},
-            onNavigateBack = {}
+            onNavigateToCourseSchedule = {}
         )
     }
 }
@@ -978,4 +1018,3 @@ fun WeekPickerDialogPreview() {
         WeekPickerDialog(currentWeek = 6, onWeekSelected = {}, onDismissRequest = {})
     }
 }
-
