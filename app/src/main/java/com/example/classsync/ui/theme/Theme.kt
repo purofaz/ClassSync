@@ -1,5 +1,6 @@
 package com.example.classsync.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -8,37 +9,22 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Color // ADDED: Import for Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PurpleBlueAccent,
-    secondary = PurpleBlueMedium,
-    tertiary = PurpleBlueLight,
-
-    // Other default colors to override for a consistent dark theme
-    background = PurpleBlueDark,
-    surface = PurpleBlueMedium,
-    onPrimary = Color.White, // Changed to White for readability on dark background
-    onSecondary = Color.White, // Changed to White for readability on dark background
-    onTertiary = Color.White, // Changed to White for readability on dark background
-    onBackground = Color.White, // Changed to White for readability on dark background
-    onSurface = Color.White, // Changed to White for readability on dark background
+    primary = Purple80,
+    secondary = PurpleGrey80,
+    tertiary = Pink80
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PurpleBlueLight,
-    secondary = PurpleBlueAccent,
-    tertiary = PurpleBlueMedium,
-
-    // Other default colors to override for a consistent light theme
-    background = Color.White, // Keeping a bright background for light theme
-    surface = Color.LightGray,
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40
 )
 
 @Composable
@@ -56,6 +42,15 @@ fun ClassSyncTheme(
 
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+        }
     }
 
     MaterialTheme(

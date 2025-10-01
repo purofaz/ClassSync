@@ -24,8 +24,7 @@ data class Course(
     val name: String,
     val location: String,
     val teacher: String?,
-    val startWeek: Int,
-    val endWeek: Int,
+    val weekSet: Set<Int>,
     val dayOfWeek: Int, // 1 for Monday, 7 for Sunday
     val startClass: Int,
     val endClass: Int,
@@ -41,13 +40,19 @@ data class ScheduleData(
     val term: String,
     val semesterStartDate: String = LocalDate.now().toString(), // ISO-8601 format
     val totalWeeks: Int = 18,
-    val courses: List<Course> = emptyList()
+    val courses: List<Course> = emptyList(),
+    val showNonCurrentWeekCourses: Boolean = true,
+    val classPeriodCount: Int = 12,
+    val classStartTimes: List<String> = listOf(
+        "08:00", "09:30", "10:15", "11:00",
+        "13:00", "14:00", "15:00", "16:00",
+        "17:00", "18:00", "19:00", "20:00"
+    )
 )
 
 @Serializable
 data class UserPreferences(
-    val schedules: List<ScheduleData> = emptyList(),
-    val showNonCurrentWeekCourses: Boolean = true
+    val schedules: List<ScheduleData> = emptyList()
 )
 
 object UserPreferencesSerializer : Serializer<UserPreferences> {

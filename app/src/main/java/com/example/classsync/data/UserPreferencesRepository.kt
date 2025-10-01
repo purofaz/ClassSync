@@ -22,10 +22,4 @@ class UserPreferencesRepository(private val context: Context) {
             preferences.copy(schedules = schedules)
         }
     }
-
-    suspend fun updateShowNonCurrentWeekCourses(show: Boolean) {
-        context.userPreferencesStore.updateData { preferences ->
-            preferences.copy(showNonCurrentWeekCourses = show)
-        }
-    }
 }
