@@ -165,49 +165,6 @@ fun CourseScheduleSettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Courses List Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("课程列表", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        IconButton(onClick = { /* TODO: Add new course logic */ }) {
-                            Icon(Icons.Default.Add, contentDescription = "添加课程", tint = TextPrimary)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (courses.isEmpty()) {
-                        Text(
-                            "暂无课程，点击右上角添加",
-                            color = TextSecondary,
-                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 24.dp)
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.heightIn(max = 400.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            userScrollEnabled = false // Inner scrolling is disabled
-                        ) {
-                            items(courses) { course ->
-                                CourseListItem(
-                                    course = course,
-                                    onEdit = { /* TODO: Edit course logic */ },
-                                    onDelete = { courses.remove(course) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-             Spacer(modifier = Modifier.height(24.dp))
-
             // Other Settings
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -285,8 +242,10 @@ private fun CourseListItem(course: Course, onEdit: () -> Unit, onDelete: () -> U
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(course.name, fontWeight = FontWeight.Bold, color = TextPrimary)
+            val startWeek = course.weekSet.minOrNull() ?: "?"
+            val endWeek = course.weekSet.maxOrNull() ?: "?"
             Text(
-                "${course.location} | 第${course.startWeek}-${course.endWeek}周 | ${DAYS_OF_WEEK[course.dayOfWeek - 1]} 第${course.startClass}-${course.endClass}节",
+                "${course.location} | 第$startWeek-$endWeek}周 | ${DAYS_OF_WEEK[course.dayOfWeek - 1]} 第${course.startClass}-${course.endClass}节",
                 fontSize = 12.sp,
                 color = TextSecondary
             )
@@ -304,7 +263,7 @@ private fun CourseListItem(course: Course, onEdit: () -> Unit, onDelete: () -> U
 
 
 @Composable
-private fun getTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
+fun getTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = PurpleBlueAccent,
     unfocusedBorderColor = Color.White.copy(alpha = 0.7f),
     focusedLabelColor = PurpleBlueAccent,

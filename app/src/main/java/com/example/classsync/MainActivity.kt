@@ -6,13 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,9 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,7 +35,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -50,27 +45,22 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -81,13 +71,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -98,31 +85,22 @@ import androidx.compose.ui.window.Dialog
 import com.example.classsync.data.Course
 import com.example.classsync.data.ScheduleData
 import com.example.classsync.data.UserPreferencesRepository
-import com.example.classsync.ui.theme.*
+import com.example.classsync.ui.theme.ClassSyncTheme
+import com.example.classsync.ui.theme.GradientBlue
+import com.example.classsync.ui.theme.GradientPurple
+import com.example.classsync.ui.theme.PurpleBlueAccent
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.UUID
-import kotlin.math.abs
 
 val DAYS_OF_WEEK = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-const val CLASS_PERIOD_COUNT = 12
 val TIME_COLUMN_WIDTH = 56.dp
-val HEADER_HEIGHT = 56.dp
+val HEADER_HEIGHT = 0.dp
 val CELL_HEIGHT = 60.dp
-val CLASS_START_TIMES = listOf(
-    "08:00", "09:30", "10:15", "11:00",
-    "13:00", "14:00", "15:00", "16:00",
-    "17:00", "18:00", "19:00", "20:00"
-)
 
 sealed interface Screen {
     data object AllCourseSchedules : Screen
@@ -143,6 +121,8 @@ class MainActivity : ComponentActivity() {
             ClassSyncTheme {
                 val schedulesList = remember { mutableStateListOf<ScheduleData>() }
                 var showNonCurrentWeekCourses by remember { mutableStateOf(true) }
+                var classPeriodCount by remember { mutableStateOf(12) }
+                var classStartTimes by remember { mutableStateOf(emptyList<String>()) }
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.AllCourseSchedules) }
                 val scope = rememberCoroutineScope()
 
@@ -150,7 +130,6 @@ class MainActivity : ComponentActivity() {
                     val prefs = userPreferencesRepository.fetchInitialPreferences()
                     schedulesList.clear()
 
-                    // Add sample data if the list is empty for demonstration
                     if (prefs.schedules.isEmpty()) {
                         schedulesList.addAll(createSampleSchedules())
                     } else {
@@ -158,6 +137,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     showNonCurrentWeekCourses = prefs.showNonCurrentWeekCourses
+                    classPeriodCount = prefs.classPeriodCount
+                    classStartTimes = prefs.classStartTimes
                 }
 
                 LaunchedEffect(schedulesList) {
@@ -189,18 +170,35 @@ class MainActivity : ComponentActivity() {
                             onNavigateToCourseTimeSettings = { currentScreen = Screen.CourseTimeSettings }
                         )
                         is Screen.CourseSchedule -> {
-                            val schedule = schedulesList.find { schedule: ScheduleData -> schedule.id == screen.scheduleId }
+                            val schedule = schedulesList.find { it.id == screen.scheduleId }
                             if (schedule != null) {
                                 CourseScheduleScreen(
                                     schedule = schedule,
                                     showNonCurrentWeekCourses = showNonCurrentWeekCourses,
-                                    onNavigateBack = { currentScreen = Screen.AllCourseSchedules }
+                                    classPeriodCount = classPeriodCount,
+                                    classStartTimes = classStartTimes,
+                                    onNavigateBack = { currentScreen = Screen.AllCourseSchedules },
+                                    onScheduleUpdated = { updatedSchedule ->
+                                        val index = schedulesList.indexOfFirst { it.id == updatedSchedule.id }
+                                        if (index != -1) {
+                                            schedulesList[index] = updatedSchedule
+                                        }
+                                    }
                                 )
                             } else {
                                 currentScreen = Screen.AllCourseSchedules
                             }
                         }
                         is Screen.CourseTimeSettings -> CourseTimeSettingsScreen(
+                            classPeriodCount = classPeriodCount,
+                            classStartTimes = classStartTimes,
+                            onSettingsChanged = { newCount, newTimes ->
+                                classPeriodCount = newCount
+                                classStartTimes = newTimes
+                                scope.launch {
+                                    userPreferencesRepository.updateClassTimeSettings(newCount, newTimes)
+                                }
+                            },
                             onNavigateBack = { currentScreen = Screen.CourseScheduleSettings(null) }
                         )
                     }
@@ -222,13 +220,13 @@ fun calculateCurrentWeek(startDate: LocalDate): Int {
 
 fun createSampleSchedules(): List<ScheduleData> {
     val sampleCourses1 = listOf(
-        Course(name = "软件工程", location = "教A-101", teacher = "张老师", startWeek = 1, endWeek = 10, dayOfWeek = 1, startClass = 1, endClass = 2, color = Color(0xFFF06292)),
-        Course(name = "操作系统", location = "实验B-203", teacher = "李教授", startWeek = 2, endWeek = 12, dayOfWeek = 3, startClass = 3, endClass = 4, color = Color(0xFF4DB6AC)),
-        Course(name = "大学物理", location = "图书馆-305", teacher = "王博士", startWeek = 5, endWeek = 15, dayOfWeek = 5, startClass = 6, endClass = 7, color = Color(0xFF9575CD))
+        Course(name = "软件工程", location = "教A-101", teacher = "张老师", weekSet = (1..10).toSet(), dayOfWeek = 1, startClass = 1, endClass = 2, color = Color(0xFFF06292)),
+        Course(name = "操作系统", location = "实验B-203", teacher = "李教授", weekSet = (2..12).toSet(), dayOfWeek = 3, startClass = 3, endClass = 4, color = Color(0xFF4DB6AC)),
+        Course(name = "大学物理", location = "图书馆-305", teacher = "王博士", weekSet = (5..15).toSet(), dayOfWeek = 5, startClass = 6, endClass = 7, color = Color(0xFF9575CD))
     )
     val sampleCourses2 = listOf(
-        Course(name = "线性代数", location = "综-C401", teacher = "赵老师", startWeek = 1, endWeek = 16, dayOfWeek = 2, startClass = 1, endClass = 2, color = Color(0xFF4FC3F7)),
-        Course(name = "数据结构", location = "电-505", teacher = "孙老师", startWeek = 1, endWeek = 12, dayOfWeek = 4, startClass = 3, endClass = 5, color = Color(0xFFFFD54F))
+        Course(name = "线性代数", location = "综-C401", teacher = "赵老师", weekSet = (1..16).toSet(), dayOfWeek = 2, startClass = 1, endClass = 2, color = Color(0xFF4FC3F7)),
+        Course(name = "数据结构", location = "电-505", teacher = "孙老师", weekSet = (1..12).toSet(), dayOfWeek = 4, startClass = 3, endClass = 5, color = Color(0xFFFFD54F))
     )
     return listOf(
         ScheduleData(name = "我的课表", term = "2024-2025-1", isCurrent = true, courses = sampleCourses1),
@@ -422,7 +420,6 @@ fun ScheduleCardItem(
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Selection Checkbox
             if (isInSelectionMode) {
                 Checkbox(
                     checked = isSelected,
@@ -436,7 +433,6 @@ fun ScheduleCardItem(
                 )
             }
 
-            // Schedule Name and Term
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -445,7 +441,6 @@ fun ScheduleCardItem(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    // "Current" Tag
                     if (scheduleData.isCurrent && !isInSelectionMode) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
@@ -464,7 +459,6 @@ fun ScheduleCardItem(
                 )
             }
 
-            // Settings Button
             if (!isInSelectionMode) {
                 Button(
                     onClick = onSettingsClick,
@@ -483,12 +477,39 @@ fun ScheduleCardItem(
 fun CourseScheduleScreen(
     schedule: ScheduleData,
     showNonCurrentWeekCourses: Boolean,
+    classPeriodCount: Int,
+    classStartTimes: List<String>,
     modifier: Modifier = Modifier,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onScheduleUpdated: (ScheduleData) -> Unit
 ) {
     val startDate = remember { LocalDate.parse(schedule.semesterStartDate) }
     val initialWeek = remember { calculateCurrentWeek(startDate).coerceIn(1, schedule.totalWeeks) }
     var currentWeek by remember { mutableStateOf(initialWeek) }
+    var showDialog by remember { mutableStateOf(false) }
+    var selectedCourse by remember { mutableStateOf<Course?>(null) }
+
+    if (showDialog) {
+        CourseEditDialog(
+            course = selectedCourse,
+            totalWeeks = schedule.totalWeeks,
+            onDismiss = { showDialog = false },
+            onSave = { updatedCourse ->
+                val updatedCourses = schedule.courses.toMutableList()
+                val index = updatedCourses.indexOfFirst { it.id == updatedCourse.id }
+                if (index != -1) {
+                    updatedCourses[index] = updatedCourse
+                }
+                onScheduleUpdated(schedule.copy(courses = updatedCourses))
+                showDialog = false
+            },
+            onDelete = { courseToDelete ->
+                val updatedCourses = schedule.courses.filter { it.id != courseToDelete.id }
+                onScheduleUpdated(schedule.copy(courses = updatedCourses))
+                showDialog = false
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier
@@ -522,18 +543,24 @@ fun CourseScheduleScreen(
 
                 Box(modifier = Modifier.verticalScroll(scrollState)) {
                     ScheduleGrid(
+                        classPeriodCount = classPeriodCount,
+                        classStartTimes = classStartTimes,
                         cellHeight = CELL_HEIGHT,
                         cellWidth = cellWidth,
                         timeColumnWidth = TIME_COLUMN_WIDTH
                     )
                     schedule.courses.forEach { course ->
-                        if (currentWeek in course.startWeek..course.endWeek) {
+                        if (currentWeek in course.weekSet) {
                             CourseCard(
                                 course = course,
                                 cellHeight = CELL_HEIGHT,
                                 cellWidth = cellWidth,
                                 timeColumnWidth = TIME_COLUMN_WIDTH,
-                                isDimmed = !showNonCurrentWeekCourses && currentWeek !in course.startWeek..course.endWeek
+                                isDimmed = !showNonCurrentWeekCourses,
+                                onClick = {
+                                    selectedCourse = course
+                                    showDialog = true
+                                }
                             )
                         }
                     }
@@ -559,8 +586,7 @@ fun WeekHeader(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -593,17 +619,24 @@ fun WeekHeader(
 }
 
 @Composable
-fun ScheduleGrid(cellHeight: androidx.compose.ui.unit.Dp, cellWidth: androidx.compose.ui.unit.Dp, timeColumnWidth: androidx.compose.ui.unit.Dp) {
+fun ScheduleGrid(
+    classPeriodCount: Int,
+    classStartTimes: List<String>,
+    cellHeight: androidx.compose.ui.unit.Dp,
+    cellWidth: androidx.compose.ui.unit.Dp,
+    timeColumnWidth: androidx.compose.ui.unit.Dp
+) {
     Row {
         Column {
             Spacer(modifier = Modifier.height(HEADER_HEIGHT))
-            CLASS_START_TIMES.forEachIndexed { index, time ->
+            (1..classPeriodCount).forEach { index ->
+                val time = classStartTimes.getOrNull(index - 1) ?: ""
                 Box(
                     modifier = Modifier.height(cellHeight).width(timeColumnWidth),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "${index + 1}\n$time",
+                        text = "$index\n$time",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center
@@ -612,24 +645,33 @@ fun ScheduleGrid(cellHeight: androidx.compose.ui.unit.Dp, cellWidth: androidx.co
             }
         }
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val gridHeight = CLASS_PERIOD_COUNT * cellHeight.toPx()
+            val gridHeight = classPeriodCount * cellHeight.toPx()
             val gridWidth = 7 * cellWidth.toPx()
+            val headerHeightPx = HEADER_HEIGHT.toPx()
+            val defaultLineColor = Color.White.copy(alpha = 0.3f)
+            val separatorLineColor = Color.White.copy(alpha = 0.5f)
 
-            // Horizontal lines
-            for (i in 0..CLASS_PERIOD_COUNT) {
-                drawLine(
-                    color = Color.White.copy(alpha = 0.2f),
-                    start = Offset(0f, i * cellHeight.toPx() + HEADER_HEIGHT.toPx()),
-                    end = Offset(gridWidth, i * cellHeight.toPx() + HEADER_HEIGHT.toPx()),
-                    strokeWidth = 1f
-                )
-            }
-            // Vertical lines
+            val lunchLineY = 4 * cellHeight.toPx() + headerHeightPx
+            drawLine(
+                color = separatorLineColor,
+                start = Offset(0f, lunchLineY),
+                end = Offset(gridWidth, lunchLineY),
+                strokeWidth = 1.5f
+            )
+
+            val dinnerLineY = 8 * cellHeight.toPx() + headerHeightPx
+            drawLine(
+                color = separatorLineColor,
+                start = Offset(0f, dinnerLineY),
+                end = Offset(gridWidth, dinnerLineY),
+                strokeWidth = 1.5f
+            )
+
             for (i in 0..7) {
-                drawLine(
-                    color = Color.White.copy(alpha = 0.2f),
-                    start = Offset(i * cellWidth.toPx(), HEADER_HEIGHT.toPx()),
-                    end = Offset(i * cellWidth.toPx(), gridHeight + HEADER_HEIGHT.toPx()),
+                 drawLine(
+                    color = defaultLineColor,
+                    start = Offset(i * cellWidth.toPx(), headerHeightPx),
+                    end = Offset(i * cellWidth.toPx(), gridHeight + headerHeightPx),
                     strokeWidth = 1f
                 )
             }
@@ -644,7 +686,8 @@ fun CourseCard(
     cellHeight: androidx.compose.ui.unit.Dp,
     cellWidth: androidx.compose.ui.unit.Dp,
     timeColumnWidth: androidx.compose.ui.unit.Dp,
-    isDimmed: Boolean
+    isDimmed: Boolean,
+    onClick: () -> Unit
 ) {
     val duration = course.endClass - course.startClass + 1
     val cardHeight = cellHeight * duration
@@ -658,7 +701,7 @@ fun CourseCard(
             .padding(2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(course.color.copy(alpha = if (isDimmed) 0.3f else 0.8f))
-            .clickable { /* Handle course click */ }
+            .clickable(onClick = onClick)
             .padding(4.dp)
     ) {
         Text(
@@ -668,5 +711,117 @@ fun CourseCard(
             fontWeight = FontWeight.Bold,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+fun CourseEditDialog(
+    course: Course?,
+    totalWeeks: Int,
+    onDismiss: () -> Unit,
+    onSave: (Course) -> Unit,
+    onDelete: (Course) -> Unit
+) {
+    if (course == null) return
+
+    var name by remember { mutableStateOf(course.name) }
+    var location by remember { mutableStateOf(course.location) }
+    var teacher by remember { mutableStateOf(course.teacher ?: "") }
+    var selectedWeeks by remember { mutableStateOf(course.weekSet) }
+    var dayOfWeek by remember { mutableStateOf(course.dayOfWeek) }
+    var startClass by remember { mutableStateOf(course.startClass) }
+    var endClass by remember { mutableStateOf(course.endClass) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text("编辑课程", style = MaterialTheme.typography.headlineSmall)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextField(value = name, onValueChange = { name = it }, label = { Text("课程名称") })
+                TextField(value = location, onValueChange = { location = it }, label = { Text("上课地点") })
+                TextField(value = teacher, onValueChange = { teacher = it }, label = { Text("教师") })
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("选择周数", style = MaterialTheme.typography.titleMedium)
+                WeekSelectionGrid(
+                    totalWeeks = totalWeeks,
+                    selectedWeeks = selectedWeeks,
+                    onWeekSelected = { week, isSelected ->
+                        selectedWeeks = if (isSelected) {
+                            selectedWeeks + week
+                        } else {
+                            selectedWeeks - week
+                        }
+                    }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { onDelete(course) }) {
+                        Text("删除", color = MaterialTheme.colorScheme.error)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onDismiss) {
+                        Text("取消")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        val updatedCourse = course.copy(
+                            name = name,
+                            location = location,
+                            teacher = teacher,
+                            weekSet = selectedWeeks,
+                            dayOfWeek = dayOfWeek,
+                            startClass = startClass,
+                            endClass = endClass
+                        )
+                        onSave(updatedCourse)
+                    }) {
+                        Text("保存")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeekSelectionGrid(
+    totalWeeks: Int,
+    selectedWeeks: Set<Int>,
+    onWeekSelected: (Int, Boolean) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 60.dp),
+        modifier = Modifier.height(200.dp)
+    ) {
+        items(totalWeeks) { week ->
+            val weekNumber = week + 1
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable {
+                    onWeekSelected(weekNumber, !selectedWeeks.contains(weekNumber))
+                }
+            ) {
+                Checkbox(
+                    checked = selectedWeeks.contains(weekNumber),
+                    onCheckedChange = { isChecked ->
+                        onWeekSelected(weekNumber, isChecked)
+                    }
+                )
+                Text(text = weekNumber.toString())
+            }
+        }
     }
 }

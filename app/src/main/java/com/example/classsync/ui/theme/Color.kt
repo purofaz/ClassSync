@@ -2,16 +2,19 @@ package com.example.classsync.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Color Definitions (aligned with MainActivity for consistency)
-val PurpleBlueDark = Color(0xFF2C2F4D)
-val PurpleBlueMedium = Color(0xFF4C507C)
-val PurpleBlueLight = Color(0xFF8C9EFF)
-val PurpleBlueAccent = Color(0xFF6A7BFF)
-val TextPrimary = Color.Black // Changed to black
-val TextSecondary = Color(0xFF333333) // Darker gray for better contrast
-val GridLineColor = TextSecondary.copy(alpha = 0.5f) // Adjusted alpha for visibility
-val SelectedItemColor = PurpleBlueLight.copy(alpha = 0.4f) // Darker selection color
+// Custom Colors from your MainActivity
+val GradientBlue = Color(0xFF6A82FB)
+val GradientPurple = Color(0xFFFC5C7D)
+val PurpleBlueAccent = Color(0xFF8A5BF3)
+val TextPrimary = Color.White
+val TextSecondary = Color.White.copy(alpha = 0.7f)
 
-// Gradient Colors
-val GradientBlue = Color(0xFF5AC8FA) // Light cyan-blue from the image
-val GradientPurple = Color(0xFFB565E5) // Deep purple from the image
+
+// Default Material 3 Colors
+val Purple80 = Color(0xFFD0BCFF)
+val PurpleGrey80 = Color(0xFFCCC2DC)
+val Pink80 = Color(0xFFEFB8C8)
+
+val Purple40 = Color(0xFF6650a4)
+val PurpleGrey40 = Color(0xFF625b71)
+val Pink40 = Color(0xFF7D5260)

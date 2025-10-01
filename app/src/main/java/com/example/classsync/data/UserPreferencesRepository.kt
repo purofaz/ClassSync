@@ -28,4 +28,13 @@ class UserPreferencesRepository(private val context: Context) {
             preferences.copy(showNonCurrentWeekCourses = show)
         }
     }
+
+    suspend fun updateClassTimeSettings(newCount: Int, newTimes: List<String>) {
+        context.userPreferencesStore.updateData { preferences ->
+            preferences.copy(
+                classPeriodCount = newCount,
+                classStartTimes = newTimes
+            )
+        }
+    }
 }
