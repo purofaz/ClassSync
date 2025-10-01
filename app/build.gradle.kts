@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    // alias(libs.plugins.androidx.baselineprofile) // REMOVED
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.23"
 }
 
 android {
@@ -26,7 +26,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // REMOVED baselineProfile block
         }
     }
     compileOptions {
@@ -53,9 +52,11 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.compose.animation) // ADD THIS LINE HERE
+    implementation(libs.androidx.compose.animation)
 
-    // REMOVED implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    // DataStore and Serialization
+    implementation("androidx.datastore:datastore:1.1.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

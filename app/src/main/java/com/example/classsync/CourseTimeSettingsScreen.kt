@@ -2,18 +2,31 @@ package com.example.classsync
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState // Added
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll // Added
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -37,10 +50,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.classsync.ui.theme.GradientBlue
+import com.example.classsync.ui.theme.GradientPurple
+import com.example.classsync.ui.theme.PurpleBlueAccent
+import com.example.classsync.ui.theme.TextPrimary
+import com.example.classsync.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
-import kotlin.math.abs
-import androidx.compose.animation.core.animateFloatAsState
-import com.example.classsync.ui.theme.*
 
 // SharedPreferences Constants
 private const val PREFS_NAME = "ClassSyncSettings"
@@ -84,13 +99,13 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val sharedPreferences = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    var lessonDuration by remember { 
-        mutableStateOf(sharedPreferences.getString(KEY_LESSON_DURATION, "45分钟") ?: "45分钟") 
+    var lessonDuration by remember {
+        mutableStateOf(sharedPreferences.getString(KEY_LESSON_DURATION, "45分钟") ?: "45分钟")
     }
-    var breakDuration by remember { 
-        mutableStateOf(sharedPreferences.getString(KEY_BREAK_DURATION, "10分钟") ?: "10分钟") 
+    var breakDuration by remember {
+        mutableStateOf(sharedPreferences.getString(KEY_BREAK_DURATION, "10分钟") ?: "10分钟")
     }
-    
+
     val morningLessons = remember { deserializeLessonTimes(sharedPreferences.getString(KEY_MORNING_LESSONS, null)) }
     val afternoonLessons = remember { deserializeLessonTimes(sharedPreferences.getString(KEY_AFTERNOON_LESSONS, null)) }
     val eveningLessons = remember { deserializeLessonTimes(sharedPreferences.getString(KEY_EVENING_LESSONS, null)) }
@@ -98,8 +113,8 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
     val allBlocks = remember(morningLessons, afternoonLessons, eveningLessons) {
         listOf(morningLessons, afternoonLessons, eveningLessons)
     }
-    
-    val scrollState = rememberScrollState() // Added scrollState
+
+    val scrollState = rememberScrollState()
 
     // Save data whenever it changes
     LaunchedEffect(lessonDuration) {
@@ -138,7 +153,7 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
     var showLessonTimeEditDialog by remember { mutableStateOf(false) }
     var editingLesson by remember { mutableStateOf<LessonTime?>(null) }
     var editingLessonBlockTitle by remember { mutableStateOf<String?>(null) }
-    
+
     val interactionSource = remember { MutableInteractionSource() }
 
     val isAnyDialogShown by remember {
@@ -149,12 +164,12 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple), start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)))
-    ) { 
+    ) {
         Scaffold(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (isAnyDialogShown) Modifier.blur(radius = 16.dp) else Modifier), 
-            containerColor = Color.Transparent, 
+                .then(if (isAnyDialogShown) Modifier.blur(radius = 16.dp) else Modifier),
+            containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
                     title = { Text("课程时间设置", color = Color.White) },
@@ -173,7 +188,7 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
                     .fillMaxSize()
                     .padding(paddingValues)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .verticalScroll(scrollState) // Added verticalScroll
+                    .verticalScroll(scrollState)
             ) {
                 SettingCard {
                     SettingItem(title = "每节课上课时长", value = lessonDuration, onClick = { showLessonDurationDialog = true })
@@ -186,7 +201,7 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
                 LessonBlockCard("下午课程", afternoonLessons, { adjustLessonCount(afternoonLessons, it, lessonDuration, breakDuration, allBlocks) }, { lesson, blockTitle -> editingLesson = lesson; editingLessonBlockTitle = blockTitle; showLessonTimeEditDialog = true })
                 Spacer(Modifier.height(16.dp))
                 LessonBlockCard("晚上课程", eveningLessons, { adjustLessonCount(eveningLessons, it, lessonDuration, breakDuration, allBlocks) }, { lesson, blockTitle -> editingLesson = lesson; editingLessonBlockTitle = blockTitle; showLessonTimeEditDialog = true })
-                 Spacer(Modifier.height(16.dp)) // Add some space at the bottom for better scroll visibility if needed
+                Spacer(Modifier.height(16.dp)) // Add some space at the bottom for better scroll visibility if needed
             }
         }
 
@@ -195,7 +210,7 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(interactionSource = interactionSource, indication = null) { showLessonDurationDialog = false },
                 contentAlignment = Alignment.Center
             ) {
-                Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) { 
+                Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) {
                     val currentDurationMinutes = lessonDuration.filter { it.isDigit() }.toIntOrNull() ?: 45
                     DurationPickerContent("每节课上课时长", "将自动调整所有课程的开始及结束时间", currentDurationMinutes, (20..90 step 5).toList(), { selectedMinutes ->
                         lessonDuration = "${selectedMinutes}分钟"
@@ -211,7 +226,7 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(interactionSource = interactionSource, indication = null) { showBreakDurationDialog = false },
                 contentAlignment = Alignment.Center
             ) {
-                Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) { 
+                Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) {
                     val currentDurationMinutes = breakDuration.filter { it.isDigit() }.toIntOrNull() ?: 10
                     DurationPickerContent("课间休息时长", "将自动调整所有课程的开始及结束时间", currentDurationMinutes, (0..30 step 5).toList(), { selectedMinutes ->
                         breakDuration = "${selectedMinutes}分钟"
@@ -227,12 +242,12 @@ fun CourseTimeSettingsScreen(onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(interactionSource = interactionSource, indication = null) { showLessonTimeEditDialog = false },
                 contentAlignment = Alignment.Center
             ) {
-                 Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) {
+                Box(modifier = Modifier.padding(horizontal = 32.dp).clickable(interactionSource = interactionSource, indication = null) {}) {
                     val lessonToEdit = editingLesson!!
                     val blockTitle = editingLessonBlockTitle!!
                     val currentLessonDurationMinutes = lessonDuration.filter { it.isDigit() }.toIntOrNull() ?: 45
-                    LessonTimePickerContent(lessonToEdit.lessonNumber, blockTitle, lessonToEdit.startTime, currentLessonDurationMinutes, 
-                        onDismiss = { showLessonTimeEditDialog = false }, 
+                    LessonTimePickerContent(lessonToEdit.lessonNumber, blockTitle, lessonToEdit.startTime, currentLessonDurationMinutes,
+                        onDismiss = { showLessonTimeEditDialog = false },
                         onConfirm = { newStartHour, newStartMinute ->
                             val newStartTimeString = String.format("%02d:%02d", newStartHour, newStartMinute)
                             // Find the lesson and update it by creating a new instance for Compose to detect
@@ -299,7 +314,7 @@ private fun updateAllLessonTimes(
                     // This lesson's start and end times are already set (or being set if it's the startingFromLesson itself)
                     // We use its already calculated previousLessonEndTimeTotalMinutes for the next one.
                     firstLessonInProcessingBlock = false // The next lesson in this block will use the break
-                    continue 
+                    continue
                 }
             }
 
@@ -311,12 +326,12 @@ private fun updateAllLessonTimes(
                 // or we are processing blocks after the edited one.
                 // It should respect its original start time or a default block start time if list was empty.
                  val blockBaseTime = when (lessonBlock) {
-                     allLessons.getOrNull(0) -> "08:00" 
+                     allLessons.getOrNull(0) -> "08:00"
                      allLessons.getOrNull(1) -> allLessons.getOrNull(0)?.lastOrNull()?.endTime?.let { minutesToTime(timeToMinutes(it) + actualBreakDurationMinutes) } ?: "13:00"
                      allLessons.getOrNull(2) -> allLessons.getOrNull(1)?.lastOrNull()?.endTime?.let { minutesToTime(timeToMinutes(it) + actualBreakDurationMinutes) } ?: "18:00"
                      else -> "08:00"
                  }
-                 currentLessonStartTimeTotalMinutes = timeToMinutes(if(lessonBlock.size == 1 && startingFromLesson == null) blockBaseTime else lesson.startTime)            
+                 currentLessonStartTimeTotalMinutes = timeToMinutes(if(lessonBlock.size == 1 && startingFromLesson == null) blockBaseTime else lesson.startTime)
             } else if (firstLessonInProcessingBlock && previousLessonEndTimeTotalMinutes != -1) {
                 // This is the first lesson in a new block, following a block that had lessons
                 // (could be the block after the one with the startingFromLesson, or a global update starting a new block)
@@ -325,7 +340,7 @@ private fun updateAllLessonTimes(
                 // This case should ideally not be hit if logic is correct, implies a fresh start mid-way without context.
                 // Defaulting to a sensible start for the block.
                  val blockBaseTime = when (lessonBlock) {
-                     allLessons.getOrNull(0) -> "08:00" 
+                     allLessons.getOrNull(0) -> "08:00"
                      allLessons.getOrNull(1) -> allLessons.getOrNull(0)?.lastOrNull()?.endTime?.let { minutesToTime(timeToMinutes(it) + actualBreakDurationMinutes) } ?: "13:00"
                      allLessons.getOrNull(2) -> allLessons.getOrNull(1)?.lastOrNull()?.endTime?.let { minutesToTime(timeToMinutes(it) + actualBreakDurationMinutes) } ?: "18:00"
                      else -> "08:00"
@@ -347,18 +362,6 @@ private fun updateAllLessonTimes(
                 endTime = newEndTime
             )
             firstLessonInProcessingBlock = false
-        }
-        // If this block was not the starting block and did not contain the starting lesson, 
-        // or if it was a global update (startingFromLesson == null), 
-        // and the block is not empty, reset previousLessonEndTimeTotalMinutes for the next block (unless it's the last block).
-        if (startingFromLesson == null && lessonBlock.isNotEmpty()) {
-             // For global updates, previous time is carried to next block's first lesson calculation (via break).
-             // No reset needed here, it's handled by firstLessonInProcessingBlock logic for block base time.
-        } else if (isStartingBlock && lessonBlock.isNotEmpty()) {
-            // If it was the starting block, previousLessonEndTimeTotalMinutes is correctly set from its last lesson.
-        } else if (lessonBlock.isNotEmpty()){
-            // A block fully after the startingFromLesson block, or just some other block during a global update.
-            // The previousLessonEndTimeTotalMinutes is correctly set by its last lesson.
         }
     }
 }
@@ -410,14 +413,7 @@ private fun adjustLessonCount(
 
     } else if (change < 0 && lessons.isNotEmpty()) {
         lessons.removeLast()
-        // After removing, a full recalculation might be safest if inter-lesson dependencies are complex,
-        // or intelligently update from the point of removal if possible.
-        // For simplicity with current updateAllLessonTimes, a global recalculation is done.
-        // However, if the removed lesson was the last in its block and not the last overall, 
-        // we might not need to update anything beyond clearing its display.
-        // If it affects subsequent blocks, then update is needed.
-        // Let's call updateAllLessonTimes without a specific starting point to refresh all dependent times.
-        updateAllLessonTimes(allBlocksForNumbering, lessonDurationString, breakDurationString) 
+        updateAllLessonTimes(allBlocksForNumbering, lessonDurationString, breakDurationString)
     }
 }
 
@@ -463,13 +459,13 @@ fun WheelPicker(
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex.coerceIn(0, items.size -1))
     val coroutineScope = rememberCoroutineScope()
     val itemHeightPx = with(LocalDensity.current) { 40.dp.toPx() }
-    LaunchedEffect(key1 = items, key2 = initialIndex) { 
+    LaunchedEffect(key1 = items, key2 = initialIndex) {
         if(items.isNotEmpty()){
              val targetScrollPosition = (listState.layoutInfo.viewportSize.height / 2 - itemHeightPx / 2).toInt()
              listState.scrollToItem(initialIndex.coerceIn(0, items.size -1), targetScrollPosition)
         }
     }
-    Box(modifier = modifier.height(160.dp), contentAlignment = Alignment.Center) { 
+    Box(modifier = modifier.height(160.dp), contentAlignment = Alignment.Center) {
         Divider(Modifier.fillMaxWidth().align(Alignment.Center).offset(y = (-20).dp), color = Color.White.copy(alpha = 0.4f), thickness = 1.dp)
         Divider(Modifier.fillMaxWidth().align(Alignment.Center).offset(y = 20.dp), color = Color.White.copy(alpha = 0.4f), thickness = 1.dp)
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, contentPadding = PaddingValues(vertical = 60.dp)) {
@@ -483,9 +479,9 @@ fun WheelPicker(
                 val scale by animateFloatAsState(if (isSelected.value) 1.2f else 1.0f, label = "s")
                 val itemAlpha by animateFloatAsState(if (isSelected.value) 1f else 0.5f, label = "a")
                 val textColor = if (isSelected.value) TextPrimary else TextSecondary
-                Box(Modifier.height(40.dp).fillMaxWidth().clickable { 
-                    coroutineScope.launch { 
-                        listState.animateScrollToItem(index, (listState.layoutInfo.viewportSize.height / 2 - itemHeightPx / 2).toInt()) 
+                Box(Modifier.height(40.dp).fillMaxWidth().clickable {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(index, (listState.layoutInfo.viewportSize.height / 2 - itemHeightPx / 2).toInt())
                     }
                 }, contentAlignment = Alignment.Center) {
                     Row(
@@ -506,9 +502,9 @@ fun DurationPickerContent(
 ) {
     var selectedValue by remember { mutableStateOf(currentValue) }
     Card(
-        Modifier.fillMaxWidth(), 
-        shape = RoundedCornerShape(12.dp), 
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.35f)) 
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.35f))
     ) {
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -530,16 +526,16 @@ fun DurationPickerContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LessonTimePickerContent(
-    lessonNumber: Int, 
-    blockTitle: String, 
-    initialStartTime: String, 
-    lessonDurationMinutes: Int, 
-    onDismiss: () -> Unit, 
+    lessonNumber: Int,
+    blockTitle: String,
+    initialStartTime: String,
+    lessonDurationMinutes: Int,
+    onDismiss: () -> Unit,
     onConfirm: (newStartHour: Int, newStartMinute: Int) -> Unit
 ) {
     val initialHour = remember(initialStartTime) { initialStartTime.split(":").getOrNull(0)?.toIntOrNull() ?: 8 }
     val initialMinute = remember(initialStartTime) { initialStartTime.split(":").getOrNull(1)?.toIntOrNull() ?: 0 }
-    
+
     var selectedHour by remember { mutableStateOf(initialHour) }
     var selectedMinute by remember { mutableStateOf(initialMinute) }
 
@@ -547,14 +543,14 @@ fun LessonTimePickerContent(
     var minuteInput by remember { mutableStateOf(String.format("%02d", initialMinute)) }
 
     Card(
-        Modifier.fillMaxWidth(), 
-        shape = RoundedCornerShape(12.dp), 
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.35f))
     ) {
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(
-                Modifier.fillMaxWidth(), 
-                horizontalArrangement = Arrangement.SpaceBetween, 
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("修改 第${lessonNumber}节 ($blockTitle)", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -563,8 +559,8 @@ fun LessonTimePickerContent(
             Text("课长: ${lessonDurationMinutes}分钟", color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(bottom = 16.dp))
             
             Row(
-                Modifier.fillMaxWidth(), 
-                horizontalArrangement = Arrangement.SpaceEvenly, 
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
@@ -627,7 +623,7 @@ fun LessonTimePickerContent(
             }
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = { 
+                onClick = {
                     val finalHour = hourInput.toIntOrNull() ?: selectedHour
                     val finalMinute = minuteInput.toIntOrNull() ?: selectedMinute
                     if (hourInput.toIntOrNull() != null && finalHour in 0..23 && minuteInput.toIntOrNull() != null && finalMinute in 0..59) {
@@ -635,9 +631,9 @@ fun LessonTimePickerContent(
                     } else {
                         Log.d("LessonTimePicker", "Invalid time input: H:$hourInput, M:$minuteInput")
                     }
-                }, 
-                Modifier.fillMaxWidth(), 
-                colors = ButtonDefaults.buttonColors(PurpleBlueAccent), 
+                },
+                Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(PurpleBlueAccent),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("确定", color = Color.White, fontSize = 16.sp)
@@ -648,24 +644,24 @@ fun LessonTimePickerContent(
 
 @Preview(showBackground = true, backgroundColor = 0xFF2C2F4D)
 @Composable
-fun PreviewCourseTimeSettingsScreen() { 
-    ClassSyncTheme { 
-        CourseTimeSettingsScreen(onNavigateBack = {}) 
+fun PreviewCourseTimeSettingsScreen() {
+    MaterialTheme {
+        CourseTimeSettingsScreen(onNavigateBack = {})
     }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF2C2F4D)
 @Composable
 fun PreviewDurationPickerContent() {
-    ClassSyncTheme {
-        Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple)))) { 
-            Box(modifier = Modifier.fillMaxSize().blur(radius = 16.dp)) { 
+    MaterialTheme {
+        Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple)))) {
+            Box(modifier = Modifier.fillMaxSize().blur(radius = 16.dp)) {
             }
-            Box( 
+            Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center
             ) {
-                Box(modifier = Modifier.padding(horizontal = 32.dp)) { 
+                Box(modifier = Modifier.padding(horizontal = 32.dp)) {
                     DurationPickerContent("时长", "Desc", 45, (20..90 step 5).toList(), {}, {})
                 }
             }
@@ -676,15 +672,15 @@ fun PreviewDurationPickerContent() {
 @Preview(showBackground = true, backgroundColor = 0xFF2C2F4D)
 @Composable
 fun PreviewLessonTimePickerContent() {
-    ClassSyncTheme {
-        Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple)))) { 
-            Box(modifier = Modifier.fillMaxSize().blur(radius = 16.dp)) { 
+    MaterialTheme {
+        Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple)))) {
+            Box(modifier = Modifier.fillMaxSize().blur(radius = 16.dp)) {
             }
-            Box( 
+            Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center
             ) {
-                Box(modifier = Modifier.padding(horizontal = 32.dp)) { 
+                Box(modifier = Modifier.padding(horizontal = 32.dp)) {
                     LessonTimePickerContent(1, "上午", "08:00", 45, {}, { _, _ -> })
                 }
             }
