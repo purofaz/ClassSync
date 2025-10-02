@@ -5,12 +5,28 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +43,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -42,6 +59,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,6 +88,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -79,6 +98,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -93,17 +115,25 @@ import com.example.classsync.ui.theme.ClassSyncTheme
 import com.example.classsync.ui.theme.GradientBlue
 import com.example.classsync.ui.theme.GradientPurple
 import com.example.classsync.ui.theme.PurpleBlueAccent
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.random.Random
 
 val DAYS_OF_WEEK = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-val TIME_COLUMN_WIDTH = 56.dp
+val TIME_COLUMN_WIDTH = 48.dp
 val HEADER_HEIGHT = 0.dp
-val CELL_HEIGHT = 60.dp
+val CELL_HEIGHT = 72.dp
 
 sealed interface Screen {
     data object AllCourseSchedules : Screen
@@ -116,6 +146,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var userPreferencesRepository: UserPreferencesRepository
 
+    @OptIn(ExperimentalAnimationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         userPreferencesRepository = UserPreferencesRepository(applicationContext)
@@ -154,7 +185,24 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Crossfade(targetState = currentScreen, label = "Screen Crossfade") { screen ->
+                AnimatedContent(
+                    targetState = currentScreen,
+                    label = "Screen Animation",
+                    transitionSpec = {
+                        val isOpeningCourseSchedule = initialState is Screen.AllCourseSchedules && targetState is Screen.CourseSchedule
+                        val isClosingCourseSchedule = initialState is Screen.CourseSchedule && targetState is Screen.AllCourseSchedules
+
+                        if (isOpeningCourseSchedule) {
+                            fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.9f, animationSpec = tween(300)) togetherWith
+                                    fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 1.1f, animationSpec = tween(300))
+                        } else if (isClosingCourseSchedule) {
+                            fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 1.1f, animationSpec = tween(300)) togetherWith
+                                    fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.9f, animationSpec = tween(300))
+                        } else {
+                            fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+                        }
+                    }
+                ) { screen ->
                     when (screen) {
                         is Screen.AllCourseSchedules -> AllCourseSchedulesScreen(
                             schedulesList = schedulesList,
@@ -239,6 +287,49 @@ fun AllCourseSchedulesScreen(
 ) {
     var isInSelectionMode by remember { mutableStateOf(false) }
     val selectedScheduleIds = remember { mutableStateOf(emptySet<String>()) }
+    var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var scheduleToDelete by remember { mutableStateOf<ScheduleData?>(null) }
+    val context = LocalContext.current
+
+
+    if (showDeleteConfirmationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmationDialog = false },
+            title = { Text("确认删除") },
+            text = {
+                if (scheduleToDelete != null) {
+                    Text("您确定要删除课程表 “${scheduleToDelete!!.name}” 吗？")
+                } else {
+                    Text("您确定要删除选中的 ${selectedScheduleIds.value.size} 个课程表吗？")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (scheduleToDelete != null) {
+                            schedulesList.remove(scheduleToDelete)
+                        } else {
+                            val idsToRemove = selectedScheduleIds.value
+                            schedulesList.removeAll { schedule -> schedule.id in idsToRemove }
+                            isInSelectionMode = false
+                        }
+                        showDeleteConfirmationDialog = false
+                        scheduleToDelete = null
+                    }
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteConfirmationDialog = false
+                    scheduleToDelete = null
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier
@@ -271,16 +362,13 @@ fun AllCourseSchedulesScreen(
                     if (isInSelectionMode) {
                         if (selectedScheduleIds.value.isNotEmpty()) {
                             IconButton(onClick = {
-                                val idsToRemove = selectedScheduleIds.value
-                                schedulesList.removeAll { schedule -> schedule.id in idsToRemove }
-                                Log.d("AllSchedules", "Deleting: $idsToRemove")
-                                isInSelectionMode = false
-                                selectedScheduleIds.value = emptySet()
+                                showDeleteConfirmationDialog = true
                             }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "删除选中", tint = Color.White)
                             }
                         }
                     } else {
+
                         IconButton(onClick = { isInSelectionMode = true }) {
                             Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = Color.White)
                         }
@@ -321,10 +409,11 @@ fun AllCourseSchedulesScreen(
                     val isSelected = schedule.id in selectedScheduleIds.value
 
                     val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value: SwipeToDismissBoxValue ->
+                        confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
-                                schedulesList.remove(schedule)
-                                true
+                                scheduleToDelete = schedule
+                                showDeleteConfirmationDialog = true
+                                false // Don't dismiss immediately
                             } else {
                                 false
                             }
@@ -483,6 +572,20 @@ fun CourseScheduleScreen(
     var showConflictDialog by remember { mutableStateOf(false) }
     var conflictingCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
     var courseToSave by remember { mutableStateOf<Course?>(null) }
+    var showWeekSelectionDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val dragOffsetX = remember { Animatable(0f) }
+
+    if (showWeekSelectionDialog) {
+        WeekSelectionDialog(
+            totalWeeks = schedule.totalWeeks,
+            onDismiss = { showWeekSelectionDialog = false },
+            onWeekSelected = { week ->
+                currentWeek = week
+                showWeekSelectionDialog = false
+            }
+        )
+    }
 
     fun findConflictingCourses(course: Course): List<Course> {
         return schedule.courses.filter { existingCourse ->
@@ -589,12 +692,38 @@ fun CourseScheduleScreen(
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues)) {
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .pointerInput(schedule.totalWeeks) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            coroutineScope.launch {
+                                dragOffsetX.snapTo(dragOffsetX.value + dragAmount)
+                            }
+                        },
+                        onDragEnd = {
+                            coroutineScope.launch {
+                                val threshold = 300f
+                                if (dragOffsetX.value > threshold) {
+                                    currentWeek = (currentWeek - 1).coerceAtLeast(1)
+                                } else if (dragOffsetX.value < -threshold) {
+                                    currentWeek = (currentWeek + 1).coerceAtMost(schedule.totalWeeks)
+                                }
+                                dragOffsetX.animateTo(0f, spring())
+                            }
+                        }
+                    )
+                }
+        ) {
             WeekHeader(
                 currentWeek = currentWeek,
                 totalWeeks = schedule.totalWeeks,
                 startDate = startDate,
-                onWeekChange = { currentWeek = it }
+                onWeekChange = { currentWeek = it },
+                onTitleClick = { showWeekSelectionDialog = true }
             )
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val cellWidth = (maxWidth - TIME_COLUMN_WIDTH) / DAYS_OF_WEEK.size
@@ -650,7 +779,7 @@ fun CourseScheduleScreen(
 
                         )
                     }
-                    
+
                     schedule.courses.forEach { course ->
                         val isCourseInCurrentWeek = currentWeek in course.weekSet
                         if (isCourseInCurrentWeek || schedule.showNonCurrentWeekCourses) {
@@ -660,6 +789,7 @@ fun CourseScheduleScreen(
                                 cellWidth = cellWidth,
                                 timeColumnWidth = TIME_COLUMN_WIDTH,
                                 isDimmed = !isCourseInCurrentWeek,
+                                rotationZ = dragOffsetX.value / 50f,
                                 onClick = {
                                     selectedCell = null
                                     selectedCourse = course
@@ -679,7 +809,8 @@ fun WeekHeader(
     currentWeek: Int,
     totalWeeks: Int,
     startDate: LocalDate,
-    onWeekChange: (Int) -> Unit
+    onWeekChange: (Int) -> Unit,
+    onTitleClick: () -> Unit
 ) {
     val weekDates = remember(currentWeek) {
         val firstDayOfSemester = startDate.with(DayOfWeek.MONDAY)
@@ -687,28 +818,34 @@ fun WeekHeader(
         List(7) { i -> firstDayOfCurrentWeek.plusDays(i.toLong()) }
     }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("M/d") }
+    val monthFormatter = remember(weekDates) {
+        val firstMonth = weekDates.first().month.getDisplayName(TextStyle.FULL, Locale.CHINA)
+        val lastMonth = weekDates.last().month.getDisplayName(TextStyle.FULL, Locale.CHINA)
+        if (firstMonth == lastMonth) firstMonth else "$firstMonth - $lastMonth"
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (currentWeek > 1) onWeekChange(currentWeek - 1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一周", tint = Color.White)
-            }
-            Text(
-                text = "第 $currentWeek 周",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-            IconButton(onClick = { if (currentWeek < totalWeeks) onWeekChange(currentWeek + 1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一周", tint = Color.White)
-            }
-        }
+        // This Row is removed
+        // Row(verticalAlignment = Alignment.CenterVertically) { ... }
         Row(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.width(TIME_COLUMN_WIDTH))
+            Box(
+                modifier = Modifier
+                    .width(TIME_COLUMN_WIDTH)
+                    .height(40.dp) // Approximate height of the day headers
+                    .clickable(onClick = onTitleClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "第 $currentWeek 周",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             DAYS_OF_WEEK.forEachIndexed { index, day ->
                 Column(
                     modifier = Modifier.weight(1f),
@@ -794,6 +931,7 @@ fun CourseCard(
     cellWidth: androidx.compose.ui.unit.Dp,
     timeColumnWidth: androidx.compose.ui.unit.Dp,
     isDimmed: Boolean,
+    rotationZ: Float,
     onClick: () -> Unit
 ) {
     val duration = course.endClass - course.startClass + 1
@@ -806,18 +944,36 @@ fun CourseCard(
             .offset(x = offsetX, y = offsetY)
             .size(width = cellWidth, height = cardHeight)
             .padding(2.dp)
+            .graphicsLayer { this.rotationZ = rotationZ }
             .clip(RoundedCornerShape(8.dp))
             .background(course.color.copy(alpha = if (isDimmed) 0.3f else 0.8f))
             .clickable(onClick = onClick)
-            .padding(4.dp)
     ) {
         Text(
+            modifier = Modifier
+                .padding(4.dp),
             text = "${course.name}\n@${course.location}",
             color = Color.White,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             overflow = TextOverflow.Ellipsis
         )
+        if (isDimmed) {
+            Surface(
+                modifier = Modifier
+                    .padding(4.dp)
+                    .align(Alignment.TopStart)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = Color.Black.copy(alpha = 0.4f)
+            ) {
+                Text(
+                    text = "非本周",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+        }
     }
 }
 
@@ -982,4 +1138,119 @@ fun WeekSelectionGrid(
             }
         }
     }
+}
+
+@Composable
+fun WeekSelectionDialog(
+    totalWeeks: Int,
+    onDismiss: () -> Unit,
+    onWeekSelected: (Int) -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("选择周数", style = MaterialTheme.typography.headlineSmall)
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 50.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(totalWeeks) { week ->
+                        val weekNumber = week + 1
+                        Box(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .clickable { onWeekSelected(weekNumber) }
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = weekNumber.toString(),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun parseTextToSchedule(visionText: Text): ScheduleData {
+    val allBlocks = visionText.textBlocks
+
+    // Find grid boundaries
+    val minX = allBlocks.minOfOrNull { it.boundingBox?.left ?: Int.MAX_VALUE } ?: 0
+    val maxX = allBlocks.maxOfOrNull { it.boundingBox?.right ?: Int.MIN_VALUE } ?: 0
+    val minY = allBlocks.minOfOrNull { it.boundingBox?.top ?: Int.MAX_VALUE } ?: 0
+    val maxY = allBlocks.maxOfOrNull { it.boundingBox?.bottom ?: Int.MIN_VALUE } ?: 0
+
+    // Heuristic to find time and day headers
+    val potentialTimeHeaders = allBlocks.filter { it.text.matches(Regex("\\d+")) && (it.boundingBox?.exactCenterX() ?: 0f) < minX + (maxX - minX) * 0.15 }
+    val potentialDayHeaders = allBlocks.filter { DAYS_OF_WEEK.any { day -> it.text.contains(day) } && (it.boundingBox?.exactCenterY() ?: 0f) < minY + (maxY - minY) * 0.15 }
+
+    if (potentialDayHeaders.isEmpty() || potentialTimeHeaders.isEmpty()) {
+        Log.e("ImageImport", "Could not determine grid headers.")
+        return ScheduleData(name = "导入失败", term = "无法识别", courses = emptyList())
+    }
+    
+    val avgTimeHeaderWidth = potentialTimeHeaders.map { it.boundingBox!!.width() }.average()
+    val timeColumnRightBoundary = potentialTimeHeaders.maxOf { it.boundingBox!!.right } + avgTimeHeaderWidth / 2
+
+    val avgDayHeaderHeight = potentialDayHeaders.map { it.boundingBox!!.height() }.average()
+    val dayRowBottomBoundary = potentialDayHeaders.maxOf { it.boundingBox!!.bottom } + avgDayHeaderHeight / 2
+
+
+    val rowSeparators = potentialTimeHeaders.sortedBy { it.boundingBox?.top }.map { it.boundingBox!!.exactCenterY() }
+    val colSeparators = potentialDayHeaders.sortedBy { it.boundingBox?.left }.map { it.boundingBox!!.exactCenterX() }
+    
+    val courses = mutableListOf<Course>()
+    val courseBlocks = allBlocks.filter {
+        (it.boundingBox?.left ?: 0) > timeColumnRightBoundary && (it.boundingBox?.top ?: 0) > dayRowBottomBoundary
+    }
+
+    for (block in courseBlocks) {
+        val centerX = block.boundingBox?.exactCenterX() ?: continue
+        val centerY = block.boundingBox?.exactCenterY() ?: continue
+
+        val dayIndex = colSeparators.indexOfLast { it < centerX }
+        if (dayIndex == -1) continue
+        val dayOfWeek = dayIndex + 1
+
+        val startClassIndex = rowSeparators.indexOfLast { it < (block.boundingBox?.top ?: 0) }
+        if (startClassIndex == -1) continue
+        val startClass = startClassIndex + 1
+        
+        val endClassIndex = rowSeparators.indexOfLast { it < (block.boundingBox?.bottom ?: 0) }
+        if (endClassIndex == -1) continue
+        val endClass = endClassIndex + 1
+
+        val lines = block.text.lines()
+        val courseName = lines.firstOrNull() ?: "未知课程"
+        val location = lines.getOrNull(1)?.trim() ?: ""
+        
+        // Basic week parsing (assuming "1-16周")
+        val weekSet = (1..16).toSet() 
+
+        courses.add(
+            Course(
+                name = courseName,
+                location = location,
+                teacher = "",
+                weekSet = weekSet,
+                dayOfWeek = dayOfWeek,
+                startClass = startClass,
+                endClass = endClass,
+                color = Color(Random.nextInt(256), Random.nextInt(256), Random.nextInt(256))
+            )
+        )
+    }
+
+    return ScheduleData(name = "导入的课程表", term = "2024-2025-1", courses = courses)
 }
