@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ import com.example.classsync.ui.theme.TextSecondary
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +55,8 @@ fun CourseScheduleSettingsScreen(
     val scrollState = rememberScrollState()
 
     Scaffold(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
             .background(Brush.linearGradient(colors = listOf(GradientBlue, GradientPurple))),
         containerColor = Color.Transparent,
         topBar = {
@@ -151,16 +154,29 @@ fun CourseScheduleSettingsScreen(
                             modifier = Modifier.weight(1f),
                             colors = getTextFieldColors()
                         )
-                        OutlinedTextField(
-                            value = semesterStartDate,
-                            onValueChange = {},
-                            label = { Text("开学日期") },
-                            readOnly = true,
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { showDatePicker = true },
-                            colors = getTextFieldColors()
-                        )
+                                .clickable { showDatePicker = true }
+                        ) {
+                            OutlinedTextField(
+                                value = semesterStartDate,
+                                onValueChange = {},
+                                label = { Text("开学日期") },
+                                enabled = false, // Important: disable to prevent focus
+                                trailingIcon = {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = "Select Date", tint = TextSecondary)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = TextPrimary,
+                                    disabledContainerColor = Color.Transparent,
+                                    disabledBorderColor = Color.White.copy(alpha = 0.7f),
+                                    disabledLabelColor = TextSecondary,
+                                    disabledTrailingIconColor = TextSecondary
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -187,7 +203,9 @@ fun CourseScheduleSettingsScreen(
                     }
                     Divider(color = Color.White.copy(alpha = 0.2f))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -209,15 +227,21 @@ fun CourseScheduleSettingsScreen(
     }
 
     if (showDatePicker) {
+        val initialDate = try {
+            LocalDate.parse(semesterStartDate)
+        } catch (e: Exception) {
+            LocalDate.now()
+        }
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = Instant.parse(semesterStartDate + "T00:00:00Z").toEpochMilli()
+            initialSelectedDateMillis = initialDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let {
-                        semesterStartDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+                        semesterStartDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                            .format(DateTimeFormatter.ISO_LOCAL_DATE)
                     }
                     showDatePicker = false
                 }) { Text("确定") }

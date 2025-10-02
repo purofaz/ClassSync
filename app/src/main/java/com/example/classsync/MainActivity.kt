@@ -1,16 +1,12 @@
 package com.example.classsync
 
 import android.os.Bundle
-import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -19,8 +15,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -52,14 +46,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -67,6 +58,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -115,10 +108,6 @@ import com.example.classsync.ui.theme.ClassSyncTheme
 import com.example.classsync.ui.theme.GradientBlue
 import com.example.classsync.ui.theme.GradientPurple
 import com.example.classsync.ui.theme.PurpleBlueAccent
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -127,7 +116,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.random.Random
 
 val DAYS_OF_WEEK = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
@@ -290,6 +278,7 @@ fun AllCourseSchedulesScreen(
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
     var scheduleToDelete by remember { mutableStateOf<ScheduleData?>(null) }
     val context = LocalContext.current
+    var showAddMenu by remember { mutableStateOf(false) }
 
 
     if (showDeleteConfirmationDialog) {
@@ -372,8 +361,29 @@ fun AllCourseSchedulesScreen(
                         IconButton(onClick = { isInSelectionMode = true }) {
                             Icon(Icons.Filled.Edit, contentDescription = "进入选择模式", tint = Color.White)
                         }
-                        IconButton(onClick = onNavigateToCreateSchedule) {
-                            Icon(Icons.Filled.Add, contentDescription = "新建课程表", tint = Color.White)
+                        Box {
+                            IconButton(onClick = { showAddMenu = true }) {
+                                Icon(Icons.Filled.Add, contentDescription = "添加课程表", tint = Color.White)
+                            }
+                            DropdownMenu(
+                                expanded = showAddMenu,
+                                onDismissRequest = { showAddMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("手动添加课程表") },
+                                    onClick = {
+                                        onNavigateToCreateSchedule()
+                                        showAddMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("教务系统添加课程表") },
+                                    onClick = {
+                                        Toast.makeText(context, "此功能正在开发中", Toast.LENGTH_SHORT).show()
+                                        showAddMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 },
@@ -1180,77 +1190,4 @@ fun WeekSelectionDialog(
             }
         }
     }
-}
-
-fun parseTextToSchedule(visionText: Text): ScheduleData {
-    val allBlocks = visionText.textBlocks
-
-    // Find grid boundaries
-    val minX = allBlocks.minOfOrNull { it.boundingBox?.left ?: Int.MAX_VALUE } ?: 0
-    val maxX = allBlocks.maxOfOrNull { it.boundingBox?.right ?: Int.MIN_VALUE } ?: 0
-    val minY = allBlocks.minOfOrNull { it.boundingBox?.top ?: Int.MAX_VALUE } ?: 0
-    val maxY = allBlocks.maxOfOrNull { it.boundingBox?.bottom ?: Int.MIN_VALUE } ?: 0
-
-    // Heuristic to find time and day headers
-    val potentialTimeHeaders = allBlocks.filter { it.text.matches(Regex("\\d+")) && (it.boundingBox?.exactCenterX() ?: 0f) < minX + (maxX - minX) * 0.15 }
-    val potentialDayHeaders = allBlocks.filter { DAYS_OF_WEEK.any { day -> it.text.contains(day) } && (it.boundingBox?.exactCenterY() ?: 0f) < minY + (maxY - minY) * 0.15 }
-
-    if (potentialDayHeaders.isEmpty() || potentialTimeHeaders.isEmpty()) {
-        Log.e("ImageImport", "Could not determine grid headers.")
-        return ScheduleData(name = "导入失败", term = "无法识别", courses = emptyList())
-    }
-    
-    val avgTimeHeaderWidth = potentialTimeHeaders.map { it.boundingBox!!.width() }.average()
-    val timeColumnRightBoundary = potentialTimeHeaders.maxOf { it.boundingBox!!.right } + avgTimeHeaderWidth / 2
-
-    val avgDayHeaderHeight = potentialDayHeaders.map { it.boundingBox!!.height() }.average()
-    val dayRowBottomBoundary = potentialDayHeaders.maxOf { it.boundingBox!!.bottom } + avgDayHeaderHeight / 2
-
-
-    val rowSeparators = potentialTimeHeaders.sortedBy { it.boundingBox?.top }.map { it.boundingBox!!.exactCenterY() }
-    val colSeparators = potentialDayHeaders.sortedBy { it.boundingBox?.left }.map { it.boundingBox!!.exactCenterX() }
-    
-    val courses = mutableListOf<Course>()
-    val courseBlocks = allBlocks.filter {
-        (it.boundingBox?.left ?: 0) > timeColumnRightBoundary && (it.boundingBox?.top ?: 0) > dayRowBottomBoundary
-    }
-
-    for (block in courseBlocks) {
-        val centerX = block.boundingBox?.exactCenterX() ?: continue
-        val centerY = block.boundingBox?.exactCenterY() ?: continue
-
-        val dayIndex = colSeparators.indexOfLast { it < centerX }
-        if (dayIndex == -1) continue
-        val dayOfWeek = dayIndex + 1
-
-        val startClassIndex = rowSeparators.indexOfLast { it < (block.boundingBox?.top ?: 0) }
-        if (startClassIndex == -1) continue
-        val startClass = startClassIndex + 1
-        
-        val endClassIndex = rowSeparators.indexOfLast { it < (block.boundingBox?.bottom ?: 0) }
-        if (endClassIndex == -1) continue
-        val endClass = endClassIndex + 1
-
-        val lines = block.text.lines()
-        val courseName = lines.firstOrNull() ?: "未知课程"
-        val location = lines.getOrNull(1)?.trim() ?: ""
-        
-        // Basic week parsing (assuming "1-16周")
-        val weekSet = (1..16).toSet() 
-
-        courses.add(
-            Course(
-                name = courseName,
-                location = location,
-                teacher = "",
-                weekSet = weekSet,
-                dayOfWeek = dayOfWeek,
-                startClass = startClass,
-                endClass = endClass,
-                color = Color(Random.nextInt(256), Random.nextInt(256), Random.nextInt(256))
-            )
-        )
-    }
-
-    return ScheduleData(name = "导入的课程表", term = "2024-2025-1", courses = courses)
 }
